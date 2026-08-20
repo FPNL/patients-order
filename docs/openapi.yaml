@@ -108,6 +108,8 @@ paths:
           $ref: '#/components/responses/ValidationFailed'
         '404':
           $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -142,6 +144,8 @@ paths:
           $ref: '#/components/responses/ValidationFailed'
         '404':
           $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -240,6 +244,7 @@ components:
             - VALIDATION_FAILED
             - NOT_FOUND
             - ROUTE_NOT_FOUND
+            - PAYLOAD_TOO_LARGE
             - INTERNAL_ERROR
           description: |
             錯誤的種類，供呼叫端做程式判斷。這是**唯一**適合拿來分支的欄位。
@@ -251,6 +256,8 @@ components:
               狀態，呼叫端**應該**呈現「查無資料」給使用者。
             - `ROUTE_NOT_FOUND`（404）：請求的路徑不屬於本 API 的任何端點。
               這代表呼叫端組錯了 URL，**不是**資料狀態。
+            - `PAYLOAD_TOO_LARGE`（413）：請求 body 超過大小上限，後端
+              **不會**讀取它的內容，因此**不會**告訴呼叫端是哪個欄位有問題。
             - `INTERNAL_ERROR`（500）：後端發生未預期的錯誤。呼叫端**可以**
               重試，但**不保證**重試會成功。
 
@@ -283,7 +290,8 @@ components:
             - `VALIDATION_FAILED`：鍵是未通過驗證的欄位名稱，值是該欄位的
               所有錯誤訊息（字串陣列，至少一則）。通過驗證的欄位**不會**
               出現。欄位名稱取自請求 body 或路徑參數。
-            - `NOT_FOUND`、`ROUTE_NOT_FOUND`、`INTERNAL_ERROR`：空物件。
+            - `NOT_FOUND`、`ROUTE_NOT_FOUND`、`PAYLOAD_TOO_LARGE`、
+              `INTERNAL_ERROR`：空物件。
 
             此處的訊息文字由驗證器產生，會隨其版本變動。呼叫端**不得**依賴
             訊息文字做程式判斷；要判斷是哪個欄位出錯，**必須**用這裡的鍵。
@@ -317,6 +325,21 @@ components:
                 message: invalid path parameter
                 data:
                   patientId: ['Invalid input: expected number, received NaN']
+
+    PayloadTooLarge:
+      description: |
+        請求 body 超過大小上限。上限由部署設定決定，預設 10MB。
+        後端**不會**讀取 body 的內容，也**不會**建立或改寫任何資料。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            body 太大:
+              value:
+                code: PAYLOAD_TOO_LARGE
+                message: request body too large
+                data: {}
 
     NotFound:
       description: |
