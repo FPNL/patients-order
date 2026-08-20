@@ -192,6 +192,38 @@ describe('OrderDialog 編輯醫囑', () => {
     )
   })
 
+  // 計畫：DialogTitle 在 draft !== null 時換成返回鍵（ArrowBack 的
+  // IconButton，aria-label 為「返回」）加上「編輯醫囑」標題；按下就
+  // setDraft(null) 與 setError(null)，回到清單那一段。
+  //
+  // 現在進了編輯畫面沒有任何路徑回到清單，只能把整個 Dialog 關掉重開。
+  //
+  // 順便把上一輪從「儲存失敗」那顆移走的保障接回來：返回之後清單仍是
+  // 原本那兩筆、順序不變，證明取消編輯沒有動到任何資料。
+  it('編輯畫面按返回回到清單，清單內容不變', async () => {
+    server.use(
+      http.get('/api/patients/:patientId/orders', () =>
+        HttpResponse.json([
+          { id: 7, patientId: 1, message: '第一筆' },
+          { id: 9, patientId: 1, message: '第二筆' },
+        ]),
+      ),
+    )
+
+    renderDialog()
+    await userEvent.click(await screen.findByRole('button', { name: '第一筆' }))
+    await userEvent.type(screen.getByRole('textbox', { name: '醫囑內容' }), '改到一半')
+    await userEvent.click(screen.getByRole('button', { name: '返回' }))
+
+    expect(screen.queryByRole('textbox', { name: '醫囑內容' })).not.toBeInTheDocument()
+
+    const list = screen.getByRole('list')
+    expect(within(list).getAllByRole('button').map((item) => item.textContent)).toEqual([
+      '第一筆',
+      '第二筆',
+    ])
+  })
+
   // 計畫：DialogContent 改成二選一——draft 為 null 就渲染 OrderList 與
   // 「新增醫囑」按鈕，不為 null 就只渲染 OrderEditor。兩者不再同時出現。
   //
@@ -269,7 +301,8 @@ describe('OrderDialog 儲存失敗', () => {
     await userEvent.click(screen.getByRole('button', { name: '儲存' }))
     await screen.findByRole('alert')
 
-    // 改去點既有的醫囑：上一則錯誤已經不成立了，留著只會誤導。
+    // 返回清單、改去點既有的醫囑：上一則錯誤已經不成立了，留著只會誤導。
+    await userEvent.click(screen.getByRole('button', { name: '返回' }))
     await userEvent.click(screen.getByRole('button', { name: '既有的醫囑' }))
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
