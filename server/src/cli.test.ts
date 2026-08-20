@@ -56,4 +56,16 @@ describe('parseCliArgs', () => {
       new CliError("Option '--conf <value>' argument missing"),
     )
   })
+
+  // 打算怎麼讓它變綠：不用改實作。options 沒開 multiple，parseArgs 對重複的
+  // 選項就是後面蓋掉前面，不當成錯誤——這是 GNU 慣例，也是 Node 的預設。
+  //
+  // 釘它是因為「不報錯」是個選擇，不是必然：實作若哪天加上 multiple: true，
+  // values.conf 會變成陣列，這顆會紅。屆時要嘛把重複視為錯誤、要嘛明確挑一
+  // 個，不能悄悄變成拿到 ['/a.json', '/b.json']。
+  it('--conf 給多次時取最後一個', () => {
+    expect(parseCliArgs(['--conf', '/a.json', '--conf', '/b.json'])).toEqual({
+      conf: '/b.json',
+    })
+  })
 })
