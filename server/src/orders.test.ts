@@ -151,4 +151,31 @@ describe('POST /api/patients/:patientId/orders', () => {
       },
     })
   })
+
+  // 計畫：
+  // 1. orderInput 加上 .strict()，未知欄位就會產生一個 unrecognized_keys
+  //    的 issue。
+  // 2. 但 z.flattenError().fieldErrors 拿不到它——那個 issue 的 path 是
+  //    空陣列，所以會被歸到 formErrors，data 會變成空物件、資訊整個掉。
+  //    所以要改成自己走 error.issues 組 data：有 path 的用 path[0] 當鍵，
+  //    unrecognized_keys 則把 issue.keys 裡的每個欄位名都當成一個鍵。
+  //    這也順便取代目前兩處的 flattenError 呼叫。
+  //
+  // 訊息實際跑過 zod 4.4.3：一個未知欄位得到單數的
+  // 'Unrecognized key: "Message"'，兩個以上會變成複數並列在同一句。
+  // 這顆只送一個未知欄位，所以斷言單數形。
+  it('帶了未定義的欄位時回 400 與 VALIDATION_FAILED', async () => {
+    const res = await request(createApp(db))
+      .post('/api/patients/1/orders')
+      .send({ message: '超過120請施打8u', Message: '拼錯的欄位名' })
+
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({
+      code: 'VALIDATION_FAILED',
+      message: 'invalid request body',
+      data: {
+        Message: ['Unrecognized key: "Message"'],
+      },
+    })
+  })
 })
