@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/main.ts -- --conf ../config.json",
+    "dev": "tsx watch src/main.ts --conf ../config.json",
     "start": "tsx src/main.ts --conf ../config.json",
     "build": "tsc --noEmit",
     "test": "vitest run",
