@@ -1,0 +1,241 @@
+openapi: 3.1.0
+
+info:
+  title: 住民醫囑 API
+  version: 1.0.0
+  description: |
+    住民（patient）與其醫囑（order）的讀寫介面。
+
+    ## 呼叫端的法遵與安全義務
+
+    - 醫囑內容是使用者可自由輸入的文字。後端**不會**對內容做 HTML 轉義，
+      原樣存入、原樣回傳。呼叫端在呈現時**必須**自行轉義，**不得**未經轉義
+      直接插入 HTML。
+    - 住民姓名與醫囑內容屬於醫療個資。呼叫端**不得**將其寫入紀錄檔、送往
+      第三方分析服務，或以查詢字串（query string）傳遞。
+    - 本 API **沒有**認證與授權機制，不區分呼叫者身分，也**不會**過濾任何
+      住民的資料。呼叫端**不得**將其部署在可公開存取的網路位置。
+
+# 本 API 不使用任何認證機制，所有端點都不需要憑證。
+security: []
+
+servers:
+  - url: /api
+
+paths:
+  /patients:
+    get:
+      summary: 取得全部住民
+      description: |
+        回傳全部住民。
+
+        住民是固定資料，本 API **不提供**新增、修改或刪除住民的方式。
+
+        一次回完整份、不分頁，要顯示幾筆、如何分批呈現由呼叫端自行決定。
+      operationId: listPatients
+      responses:
+        '200':
+          description: 全部住民。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Patient'
+
+  /patients/{patientId}/orders:
+    parameters:
+      - $ref: '#/components/parameters/PatientId'
+
+    get:
+      summary: 取得指定住民的醫囑
+      description: |
+        回傳指定住民底下的全部醫囑，**依建立時間由舊到新**排序。
+
+        一次回完整份、不分頁，要顯示幾筆、如何分批呈現由呼叫端自行決定。
+      operationId: listOrdersOfPatient
+      responses:
+        '200':
+          description: 該住民的全部醫囑，依建立時間由舊到新。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      summary: 為指定住民新增一筆醫囑
+      description: |
+        為指定住民新增一筆醫囑。
+
+        會建立一筆醫囑並掛在該住民底下，醫囑的識別碼由後端產生。
+        新增的醫囑會排在該住民既有醫囑的最後。
+      operationId: createOrderForPatient
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderInput'
+      responses:
+        '201':
+          description: 已建立的醫囑，含後端產生的識別碼。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /orders/{orderId}:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+
+    put:
+      summary: 覆寫指定醫囑的內容
+      description: |
+        以請求中的內容取代指定醫囑的內容。
+
+        會改寫該筆醫囑的 `message`。醫囑的識別碼與它所屬的住民**不會**改變，
+        也**不能**透過這支端點更換。
+
+        醫囑的排序依據是建立時間，因此改寫內容**不會**改變它在清單中的位置。
+      operationId: replaceOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderInput'
+      responses:
+        '200':
+          description: 改寫後的醫囑。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  parameters:
+    PatientId:
+      name: patientId
+      in: path
+      required: true
+      description: 住民的識別碼，取自住民清單回傳的 `id`。
+      schema:
+        type: integer
+        format: int32
+
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      description: 醫囑的識別碼，取自醫囑清單或新增醫囑回傳的 `id`。
+      schema:
+        type: integer
+        format: int32
+
+  schemas:
+    Patient:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+          format: int32
+          description: |
+            住民的識別碼。由後端產生，呼叫端**不得**自行產生或推測。
+            **不承諾**連續、也**不承諾**可用來排序，只能原樣送回。
+          examples: [1]
+        name:
+          type: string
+          description: 住民姓名。
+          examples: [小民]
+
+    Order:
+      type: object
+      required: [id, patientId, message]
+      properties:
+        id:
+          type: integer
+          format: int32
+          description: |
+            醫囑的識別碼。由後端產生，呼叫端**不得**自行產生或推測。
+            **不承諾**連續、也**不承諾**可用來排序，只能原樣送回。
+          examples: [1]
+        patientId:
+          type: integer
+          format: int32
+          description: |
+            這筆醫囑所屬住民的識別碼。一經建立即固定，**不會**被任何端點改變。
+          examples: [1]
+        message:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: |
+            醫囑內容，原樣存入、原樣回傳，後端**不會**做任何轉義或正規化。
+          examples: [超過120請施打8u]
+
+    OrderInput:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: |
+            醫囑內容。**必須**有值，長度**必須**介於 1 到 500 個字元，
+            前後空白**不會**被去除，會原樣存入。
+          examples: [超過120請施打8u]
+
+    ValidationError:
+      type: object
+      required: [formErrors, fieldErrors]
+      description: |
+        請求 body 未通過驗證時的內容。
+      properties:
+        formErrors:
+          type: array
+          description: 不屬於任何單一欄位的錯誤訊息。
+          items:
+            type: string
+        fieldErrors:
+          type: object
+          description: |
+            鍵是未通過驗證的欄位名稱，值是該欄位的所有錯誤訊息。
+            通過驗證的欄位**不會**出現在這裡。
+
+            訊息文字由驗證器產生，會隨其版本變動。呼叫端**不得**依賴訊息
+            文字做程式判斷，只能原樣呈現或忽略；要判斷是哪個欄位出錯，
+            請用這裡的鍵。
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          examples:
+            - message: ['Too small: expected string to have >=1 characters']
+
+  responses:
+    ValidationFailed:
+      description: |
+        請求 body 未通過驗證。後端**不會**建立或改寫任何資料。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+
+    NotFound:
+      description: |
+        路徑上的識別碼找不到對應的住民或醫囑。後端**不會**建立或改寫任何資料。
+        此回應**沒有** body。
