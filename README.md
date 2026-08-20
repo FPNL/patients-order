@@ -11,13 +11,9 @@
 
 ```
 ├── client/          Vite + React + MUI
-│   └── src/
-│       └── test/    MSW 與 RTL 的測試環境設定
 ├── server/          Express + Kysely
-│   └── src/
-│       └── db/      dialect、migration、測試資料庫
 ├── docs/
-│   └── openapi.yaml     API 契約（規格先行，實作跟著它走）
+│   └── openapi.yaml     API 文件
 └── docker-compose.yml   開發用 PostgreSQL（測試用不到）
 ```
 
