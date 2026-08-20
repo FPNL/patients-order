@@ -1,6 +1,6 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
-import type { Kysely } from 'kysely'
+import { sql, type Kysely } from 'kysely'
 import { createApp } from './app'
 import { createTestDatabase } from './db/test-database'
 import type { Database } from './db/schema'
@@ -12,6 +12,15 @@ beforeAll(async () => {
 })
 afterAll(async () => {
   await db.destroy()
+})
+
+// 從新增醫囑那顆開始這個檔案有寫入，測試之間必須隔離。PGlite 建立一次要
+// 約 500ms，所以不重建實例，改用 transaction rollback——單顆成本 0.33ms。
+beforeEach(async () => {
+  await sql`begin`.execute(db)
+})
+afterEach(async () => {
+  await sql`rollback`.execute(db)
 })
 
 describe('GET /api/patients/:patientId/orders', () => {
@@ -81,6 +90,38 @@ describe('GET /api/patients/:patientId/orders', () => {
       data: {
         patientId: ['Invalid input: expected number, received NaN'],
       },
+    })
+  })
+})
+
+describe('POST /api/patients/:patientId/orders', () => {
+  // 計畫：
+  // 1. 新增 migration 建 orders 表：id serial primary key、
+  //    patient_id integer not null references patients(id)、
+  //    message text not null。排序用的時間欄位這顆不加，等第 10 顆。
+  // 2. schema.ts 的 Database interface 加上 orders。id 用
+  //    Generated<number>，因為 insert 時不給、由資料庫產生。
+  // 3. createApp 加一條 app.post，沿用同一份路徑參數驗證與住民存在性
+  //    檢查，body 用 z.object({ message: z.string().min(1).max(4000) })
+  //    驗過之後 insertInto('orders').returningAll()，回 201。
+  //
+  // 驗證失敗、未定義欄位、住民不存在這三條分支都不碰，各自留給第 7、8、
+  // 9 顆。這顆只走 happy path。
+  //
+  // 斷言完整的 body：契約規定回的是 Order，三個欄位都要在。id 由後端
+  // 產生且契約明寫不承諾連續，但這是一個乾淨的測試資料庫、序列從 1 開始，
+  // 所以這裡斷言 1 是安全的。
+  it('新增成功時回 201 與建立的醫囑', async () => {
+    const res = await request(createApp(db))
+      .post('/api/patients/1/orders')
+      .send({ message: '超過120請施打8u' })
+
+    expect(res.status).toBe(201)
+    expect(res.headers['content-type']).toMatch(/^application\/json/)
+    expect(res.body).toEqual({
+      id: 1,
+      patientId: 1,
+      message: '超過120請施打8u',
     })
   })
 })
