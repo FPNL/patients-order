@@ -1,4 +1,5 @@
 import express, { type Express } from 'express'
+import helmet from 'helmet'
 import type { Kysely } from 'kysely'
 import { ApiError, errorHandler } from './api/api'
 import {
@@ -18,6 +19,9 @@ import type { Database } from './db/schema'
  */
 export function createApp(db: Kysely<Database>): Express {
   const app = express()
+
+  // 掛在最前面，讓每個回應都帶到——包含錯誤回應。
+  app.use(helmet())
   app.use(express.json())
 
   app.get('/api/health', (_req, res) => {
