@@ -35,7 +35,7 @@ paths:
     get:
       summary: 取得全部住民
       description: |
-        回傳全部住民。
+        回傳全部住民，**依 `id` 由小到大**排序。
 
         住民是固定資料，本 API **不提供**新增、修改或刪除住民的方式。
 
@@ -43,7 +43,7 @@ paths:
       operationId: listPatients
       responses:
         '200':
-          description: 全部住民。沒有任何住民時回傳空陣列。
+          description: 全部住民，依 `id` 由小到大。沒有任何住民時回傳空陣列。
           content:
             application/json:
               schema:
