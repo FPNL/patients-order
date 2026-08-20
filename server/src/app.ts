@@ -8,6 +8,10 @@ const patientIdParam = z.object({
   patientId: z.coerce.number().int().positive(),
 })
 
+const orderIdParam = z.object({
+  orderId: z.coerce.number().int().positive(),
+})
+
 const orderInput = z
   .object({
     message: z.string().min(1).max(4000),
@@ -142,6 +146,41 @@ export function createApp(db: Kysely<Database>): Express {
       .executeTakeFirstOrThrow()
 
     res.status(201).json({
+      id: order.id,
+      patientId: order.patient_id,
+      message: order.message,
+    })
+  })
+
+  app.put('/api/orders/:orderId', async (req, res) => {
+    const params = orderIdParam.safeParse(req.params)
+    if (!params.success) {
+      throw new ApiError(
+        400,
+        'VALIDATION_FAILED',
+        'invalid path parameter',
+        toFieldErrors(params.error),
+      )
+    }
+
+    const body = orderInput.safeParse(req.body)
+    if (!body.success) {
+      throw new ApiError(
+        400,
+        'VALIDATION_FAILED',
+        'invalid request body',
+        toFieldErrors(body.error),
+      )
+    }
+
+    const order = await db
+      .updateTable('orders')
+      .set({ message: body.data.message })
+      .where('id', '=', params.data.orderId)
+      .returningAll()
+      .executeTakeFirstOrThrow()
+
+    res.json({
       id: order.id,
       patientId: order.patient_id,
       message: order.message,
