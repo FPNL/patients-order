@@ -7,7 +7,11 @@ import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import ListItemButton from '@mui/material/ListItemButton'
 import ListItemText from '@mui/material/ListItemText'
+import Stack from '@mui/material/Stack'
+import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
+import AddIcon from '@mui/icons-material/Add'
+import IconButton from '@mui/material/IconButton'
 
 interface Patient {
   id: number
@@ -22,6 +26,7 @@ interface Order {
 
 function OrderDialog({ patient, onClose }: { patient: Patient; onClose: () => void }) {
   const [orders, setOrders] = useState<Order[]>([])
+  const [draft, setDraft] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -39,7 +44,15 @@ function OrderDialog({ patient, onClose }: { patient: Patient; onClose: () => vo
 
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>{patient.name}</DialogTitle>
+      <DialogTitle>
+        <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>{patient.name}</span>
+          {/* 圖示按鈕沒有文字內容，aria-label 是螢幕閱讀器唯一的線索。 */}
+          <IconButton aria-label="新增醫囑" onClick={() => setDraft('')}>
+            <AddIcon />
+          </IconButton>
+        </Stack>
+      </DialogTitle>
       <DialogContent>
         {orders.length === 0 ? (
           <Typography color="text.secondary" sx={{ py: 2 }}>
@@ -53,6 +66,17 @@ function OrderDialog({ patient, onClose }: { patient: Patient; onClose: () => vo
               </ListItem>
             ))}
           </List>
+        )}
+
+        {draft !== null && (
+          <TextField
+            label="醫囑內容"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            fullWidth
+            multiline
+            autoFocus
+          />
         )}
       </DialogContent>
     </Dialog>
