@@ -92,6 +92,40 @@ describe('OrderDialog 新增醫囑', () => {
     // 存完就收起來，不留著一個裝著舊內容的輸入框。
     expect(screen.queryByRole('textbox', { name: '醫囑內容' })).not.toBeInTheDocument()
   })
+
+  // 計畫：在 OrderDialog 的 save 裡把送出的內容換成 message.trim()——
+  // 輸入框裡的字不動（使用者打了什麼還看得到），只有交給 API 的那份被
+  // 去空白。
+  //
+  // 現在送出的是輸入框的原樣內容，後端會把只有空白的那種擋成 400；前後
+  // 帶空白的則是存進去之後才由後端 trim，使用者送出的與存下來的不一致。
+  //
+  // 斷言的是實際送出去的 body 而不是畫面：trim 發生在送出的那一刻，
+  // 畫面上的輸入框本來就不該被動。
+  it('送出前去除前後空白', async () => {
+    let posted: unknown
+
+    server.use(
+      http.get('/api/patients/:patientId/orders', () => HttpResponse.json([])),
+      http.post('/api/patients/:patientId/orders', async ({ request }) => {
+        posted = await request.json()
+        return HttpResponse.json(
+          { id: 8, patientId: 1, message: '超過120請施打8u' },
+          { status: 201 },
+        )
+      }),
+    )
+
+    renderDialog()
+    await userEvent.click(await screen.findByRole('button', { name: '新增醫囑' }))
+    await userEvent.type(
+      await screen.findByRole('textbox', { name: '醫囑內容' }),
+      '  超過120請施打8u  ',
+    )
+    await userEvent.click(screen.getByRole('button', { name: '儲存' }))
+
+    await waitFor(() => expect(posted).toEqual({ message: '超過120請施打8u' }))
+  })
 })
 
 describe('OrderDialog 編輯醫囑', () => {
