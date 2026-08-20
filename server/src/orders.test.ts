@@ -57,4 +57,30 @@ describe('GET /api/patients/:patientId/orders', () => {
       data: {},
     })
   })
+
+  // 計畫：
+  // 1. 在這條 handler 開頭用 zod 驗路徑參數：
+  //    z.object({ patientId: z.coerce.number().int().positive() })。
+  //    路徑參數永遠是字串，所以要 coerce。
+  // 2. 驗不過就丟 ApiError(400, 'VALIDATION_FAILED', 'invalid path
+  //    parameter', z.flattenError(err).fieldErrors)——data 的形狀契約已經
+  //    定死是 { 欄位名: [訊息, ...] }，正好是 fieldErrors。
+  // 3. 驗過才拿去查住民，所以 abc 會在查資料庫之前就被擋下來，回 400
+  //    而不是 404。這正是契約在 PatientId 參數上明寫的行為。
+  //
+  // data 裡的訊息是 zod 產生的，照 CLAUDE.md 不准用猜的：實際跑過
+  // zod 4.4.3 得到 'Invalid input: expected number, received NaN'，
+  // 原樣寫進斷言。
+  it('住民 id 不是整數時回 400 與 VALIDATION_FAILED', async () => {
+    const res = await request(createApp(db)).get('/api/patients/abc/orders')
+
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({
+      code: 'VALIDATION_FAILED',
+      message: 'invalid path parameter',
+      data: {
+        patientId: ['Invalid input: expected number, received NaN'],
+      },
+    })
+  })
 })
