@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react'
+import Avatar from '@mui/material/Avatar'
+import Button from '@mui/material/Button'
 import Dialog from '@mui/material/Dialog'
 import DialogContent from '@mui/material/DialogContent'
 import DialogTitle from '@mui/material/DialogTitle'
+import Divider from '@mui/material/Divider'
 import IconButton from '@mui/material/IconButton'
 import Stack from '@mui/material/Stack'
+import Typography from '@mui/material/Typography'
 import AddIcon from '@mui/icons-material/Add'
+import CloseIcon from '@mui/icons-material/Close'
+import PersonOutlineIcon from '@mui/icons-material/PersonOutlineRounded'
 import { ApiError } from '../api/api'
 import { createOrderForPatient, listOrdersOfPatient, replaceOrder } from '../api/order'
 import type { Order, Patient } from '../api/types'
@@ -73,29 +79,54 @@ export default function OrderDialog({ patient, onClose }: Props) {
 
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>
-        <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
-          <span>{patient.name}</span>
+      <DialogTitle component="div" sx={{ p: 2.5, pb: 2 }}>
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+          <Avatar sx={{ bgcolor: 'primary.light', color: 'primary.dark' }}>
+            <PersonOutlineIcon />
+          </Avatar>
+
+          {/* minWidth: 0 讓長姓名在這個 flex 列裡縮得下去，不會把關閉鈕擠出去。 */}
+          <Stack sx={{ flexGrow: 1, minWidth: 0 }}>
+            <Typography variant="h2" component="h2" noWrap>
+              {patient.name}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              醫囑
+            </Typography>
+          </Stack>
+
           {/* 圖示按鈕沒有文字內容，aria-label 是螢幕閱讀器唯一的線索。 */}
-          <IconButton aria-label="新增醫囑" onClick={() => edit({ id: null, message: '' })}>
-            <AddIcon />
+          <IconButton aria-label="關閉" onClick={onClose}>
+            <CloseIcon />
           </IconButton>
         </Stack>
       </DialogTitle>
 
-      <DialogContent>
+      <Divider />
+
+      <DialogContent sx={{ p: 2.5 }}>
         <OrderList
           orders={orders}
           onSelect={(order) => edit({ id: order.id, message: order.message })}
         />
 
-        {draft !== null && (
+        {draft !== null ? (
           <OrderEditor
             message={draft.message}
             error={error}
             onChange={(message) => setDraft({ ...draft, message })}
             onSave={() => void save(draft)}
           />
+        ) : (
+          <Stack direction="row" sx={{ justifyContent: 'flex-end', mt: 2 }}>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => edit({ id: null, message: '' })}
+            >
+              新增醫囑
+            </Button>
+          </Stack>
         )}
       </DialogContent>
     </Dialog>
