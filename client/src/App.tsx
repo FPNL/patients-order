@@ -4,7 +4,6 @@ import Dialog from '@mui/material/Dialog'
 import DialogContent from '@mui/material/DialogContent'
 import DialogTitle from '@mui/material/DialogTitle'
 import List from '@mui/material/List'
-import ListItem from '@mui/material/ListItem'
 import ListItemButton from '@mui/material/ListItemButton'
 import ListItemText from '@mui/material/ListItemText'
 import Button from '@mui/material/Button'
@@ -25,9 +24,18 @@ interface Order {
   message: string
 }
 
+/**
+ * 正在編輯中的內容。id 為 null 代表新增一筆，有值代表在改哪一筆——
+ * 兩種情況共用同一個輸入欄位與儲存按鈕，因為對使用者來說是同一件事。
+ */
+interface Draft {
+  id: number | null
+  message: string
+}
+
 function OrderDialog({ patient, onClose }: { patient: Patient; onClose: () => void }) {
   const [orders, setOrders] = useState<Order[]>([])
-  const [draft, setDraft] = useState<string | null>(null)
+  const [draft, setDraft] = useState<Draft | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -43,17 +51,29 @@ function OrderDialog({ patient, onClose }: { patient: Patient; onClose: () => vo
     }
   }, [patient.id])
 
-  // 契約承諾 POST 會回傳建立好的醫囑，那份資料就是權威的——接到清單尾端
-  // 即可（契約也承諾新增的排在最後），不必再打一次 GET。
-  const save = async (message: string) => {
-    const res = await fetch(`/api/patients/${patient.id}/orders`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message }),
-    })
+  // 兩支端點都承諾回傳處理完的那筆醫囑，那份資料就是權威的，不必再打一次
+  // GET。新增的接到尾端、改寫的原地替換——兩者都是契約明寫的行為。
+  const save = async ({ id, message }: Draft) => {
+    const res =
+      id === null
+        ? await fetch(`/api/patients/${patient.id}/orders`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message }),
+          })
+        : await fetch(`/api/orders/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message }),
+          })
 
-    const created: Order = await res.json()
-    setOrders((current) => [...current, created])
+    const saved: Order = await res.json()
+
+    setOrders((current) =>
+      id === null
+        ? [...current, saved]
+        : current.map((order) => (order.id === id ? saved : order)),
+    )
     setDraft(null)
   }
 
@@ -63,7 +83,7 @@ function OrderDialog({ patient, onClose }: { patient: Patient; onClose: () => vo
         <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
           <span>{patient.name}</span>
           {/* 圖示按鈕沒有文字內容，aria-label 是螢幕閱讀器唯一的線索。 */}
-          <IconButton aria-label="新增醫囑" onClick={() => setDraft('')}>
+          <IconButton aria-label="新增醫囑" onClick={() => setDraft({ id: null, message: '' })}>
             <AddIcon />
           </IconButton>
         </Stack>
@@ -76,9 +96,12 @@ function OrderDialog({ patient, onClose }: { patient: Patient; onClose: () => vo
         ) : (
           <List>
             {orders.map((order) => (
-              <ListItem key={order.id}>
+              <ListItemButton
+                key={order.id}
+                onClick={() => setDraft({ id: order.id, message: order.message })}
+              >
                 <ListItemText primary={order.message} />
-              </ListItem>
+              </ListItemButton>
             ))}
           </List>
         )}
@@ -87,8 +110,8 @@ function OrderDialog({ patient, onClose }: { patient: Patient; onClose: () => vo
           <Stack spacing={1}>
             <TextField
               label="醫囑內容"
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
+              value={draft.message}
+              onChange={(event) => setDraft({ ...draft, message: event.target.value })}
               fullWidth
               multiline
               autoFocus

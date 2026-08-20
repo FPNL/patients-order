@@ -72,8 +72,10 @@ describe('醫囑 Dialog', () => {
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText('阿珠')).toBeInTheDocument()
 
-    const messages = await within(dialog).findAllByRole('listitem')
-    expect(messages.map((item) => item.textContent)).toEqual([
+    // 醫囑本身是可點擊的（下一顆會用到），所以查的是清單裡的 button，
+    // 並限定在 list 內，避免把「新增醫囑」按鈕算進來。
+    const list = await within(dialog).findByRole('list')
+    expect(within(list).getAllByRole('button').map((item) => item.textContent)).toEqual([
       '超過120請施打8u',
       '血壓每日量兩次',
     ])
@@ -171,11 +173,13 @@ describe('醫囑 Dialog', () => {
 
     await waitFor(() => expect(posted).toEqual({ message: '超過120請施打8u' }))
 
-    const messages = await within(dialog).findAllByRole('listitem')
-    expect(messages.map((item) => item.textContent)).toEqual([
-      '既有的醫囑',
-      '超過120請施打8u',
-    ])
+    const list = await within(dialog).findByRole('list')
+    await waitFor(() =>
+      expect(within(list).getAllByRole('button').map((item) => item.textContent)).toEqual([
+        '既有的醫囑',
+        '超過120請施打8u',
+      ]),
+    )
 
     // 存完就收起來，不留著一個裝著舊內容的輸入框。
     expect(within(dialog).queryByRole('textbox', { name: '醫囑內容' })).not.toBeInTheDocument()

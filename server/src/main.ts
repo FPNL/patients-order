@@ -20,6 +20,10 @@ function readConfig(): Config {
 //  config.ts 中的 config.Default.port, config.Default.max_request_body
 const config = readConfig()
 
+// FIXME: 不需要返回 db 跟 config.ts 一樣新增 default 變數，
+//  不過原本參數有 Kysely<Database> 還是要保持，這樣方便測試注入，除了 createApp,
+//  createApp 要移除 Kysely<Database> 參數，因為那是 handler 需要用，並且 /health 也不需要，
+//  因此修改測試內容但不影響輸入輸出
 const db = createDatabase(config.database.url)
 await migrateToLatest(db)
 
