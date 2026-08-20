@@ -24,4 +24,21 @@ describe('parseCliArgs', () => {
       new CliError('missing required option --conf <path to config file>'),
     )
   })
+
+  // 打算怎麼讓它變綠：把 parseArgs 那段包進 try／catch。parseArgs 對不認得
+  // 的選項丟的是帶 ERR_PARSE_ARGS_ 前綴 code 的 TypeError——那跟缺 --conf
+  // 一樣是「命令列用法錯誤」，所以攔下來換成同訊息的 CliError 再丟出去，
+  // 呼叫端只要認得 CliError 一種型別。
+  //
+  // 訊息是 parseArgs 產生的，不是猜的：先跑過
+  // `parseArgs({ args: ['--typo', '1'], options: { conf: { type: 'string' } },
+  // strict: true })`，拿到的就是這個字串。
+  //
+  // catch 到非 ERR_PARSE_ARGS_ 的錯誤要原樣 rethrow——那代表 parseArgs 的
+  // 用法出錯（例如 options 寫錯），是程式的 bug，該留下堆疊追蹤。
+  it('不認得的選項就丟 CliError', () => {
+    expect(() => parseCliArgs(['--conf', '/c.json', '--typo', '1'])).toThrow(
+      new CliError("Unknown option '--typo'"),
+    )
+  })
 })
