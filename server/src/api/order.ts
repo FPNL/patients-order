@@ -4,32 +4,24 @@ import { z } from 'zod'
 import type { Database } from '../db/schema'
 import { ApiError, parseBody, parsePathParams } from './api'
 
-// 路徑參數永遠是字串，所以要 coerce 之後才驗得了數值條件。
-const patientIdParam = z.object({
-  patientId: z.coerce.number().int().positive(),
-})
-
-const orderIdParam = z.object({
-  orderId: z.coerce.number().int().positive(),
-})
-
-async function requirePatient(db: Kysely<Database>, patientId: number): Promise<void> {
-  const patient = await db
-    .selectFrom('patients')
-    .select('id')
-    .where('id', '=', patientId)
-    .executeTakeFirst()
-
-  if (!patient) {
-    throw new ApiError(404, 'NOT_FOUND', 'patient not found')
-  }
-}
-
 /** 契約的 listOrdersOfPatient：回傳該住民的醫囑，依建立時間由舊到新。 */
 export function listOrdersOfPatientHandler(db: Kysely<Database>): RequestHandler {
   return async (req, res) => {
+    const patientIdParam = z.object({
+      patientId: z.coerce.number().int().positive(),
+    })
+
     const { patientId } = parsePathParams(patientIdParam, req.params)
-    await requirePatient(db, patientId)
+
+    const patient = await db
+      .selectFrom('patients')
+      .select('id')
+      .where('id', '=', patientId)
+      .executeTakeFirst()
+
+    if (!patient) {
+      throw new ApiError(404, 'NOT_FOUND', 'patient not found')
+    }
 
     const orders = await db
       .selectFrom('orders')
@@ -62,8 +54,22 @@ const ReqCreateOrderForPatient = z
 /** 契約的 createOrderForPatient：為該住民新增一筆醫囑。 */
 export function createOrderForPatientHandler(db: Kysely<Database>): RequestHandler {
   return async (req, res) => {
+    const patientIdParam = z.object({
+      patientId: z.coerce.number().int().positive(),
+    })
+
     const { patientId } = parsePathParams(patientIdParam, req.params)
-    await requirePatient(db, patientId)
+
+    const patient = await db
+      .selectFrom('patients')
+      .select('id')
+      .where('id', '=', patientId)
+      .executeTakeFirst()
+
+    if (!patient) {
+      throw new ApiError(404, 'NOT_FOUND', 'patient not found')
+    }
+
     const { message } = parseBody(ReqCreateOrderForPatient, req.body)
 
     const order = await db
@@ -91,6 +97,10 @@ const ReqReplaceOrder = z
 /** 契約的 replaceOrder：以請求內容取代該醫囑的內容。 */
 export function replaceOrderHandler(db: Kysely<Database>): RequestHandler {
   return async (req, res) => {
+    const orderIdParam = z.object({
+      orderId: z.coerce.number().int().positive(),
+    })
+
     const { orderId } = parsePathParams(orderIdParam, req.params)
     const { message } = parseBody(ReqReplaceOrder, req.body)
 

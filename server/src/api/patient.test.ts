@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import type { Kysely } from 'kysely'
-import { createApp } from './app'
-import { createTestDatabase } from './db/test-database'
-import type { Database } from './db/schema'
+import { createApp } from '../app'
+import { createTestDatabase } from '../db/test-database'
+import type { Database } from '../db/schema'
 
 let db: Kysely<Database>
 

@@ -2,10 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { PGlite } from '@electric-sql/pglite'
 import { Kysely } from 'kysely'
-import { createApp } from './app'
-import { PGliteDialect } from './db/pglite-dialect'
-import { createTestDatabase } from './db/test-database'
-import type { Database } from './db/schema'
+import { createApp } from '../app'
+import { PGliteDialect } from '../db/pglite-dialect'
+import { createTestDatabase } from '../db/test-database'
+import type { Database } from '../db/schema'
 
 let db: Kysely<Database>
 
