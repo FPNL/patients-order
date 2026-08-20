@@ -58,11 +58,15 @@ export default function OrderDialog({ patient, onClose }: Props) {
   // 兩支端點都承諾回傳處理完的那筆醫囑，那份資料就是權威的，不必再打一次
   // GET。新增的接到尾端、改寫的原地替換——兩者都是契約明寫的行為。
   const save = async ({ id, message }: Draft) => {
+    // 送出的是去掉前後空白的內容，輸入框裡的字不動——使用者打了什麼還
+    // 看得到。
+    const trimmed = message.trim()
+
     try {
       const saved =
         id === null
-          ? await createOrderForPatient(patient.id, message)
-          : await replaceOrder(id, message)
+          ? await createOrderForPatient(patient.id, trimmed)
+          : await replaceOrder(id, trimmed)
 
       setOrders((current) =>
         id === null
