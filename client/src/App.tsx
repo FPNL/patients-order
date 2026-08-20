@@ -41,13 +41,19 @@ function OrderDialog({ patient, onClose }: { patient: Patient; onClose: () => vo
     <Dialog open onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>{patient.name}</DialogTitle>
       <DialogContent>
-        <List>
-          {orders.map((order) => (
-            <ListItem key={order.id}>
-              <ListItemText primary={order.message} />
-            </ListItem>
-          ))}
-        </List>
+        {orders.length === 0 ? (
+          <Typography color="text.secondary" sx={{ py: 2 }}>
+            尚未有醫囑
+          </Typography>
+        ) : (
+          <List>
+            {orders.map((order) => (
+              <ListItem key={order.id}>
+                <ListItemText primary={order.message} />
+              </ListItem>
+            ))}
+          </List>
+        )}
       </DialogContent>
     </Dialog>
   )
