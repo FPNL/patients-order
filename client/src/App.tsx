@@ -25,6 +25,23 @@ interface Order {
 }
 
 /**
+ * 依契約的 code 決定要給使用者看什麼。
+ *
+ * 契約明寫回應裡的 message 是英文、寫給開發者與紀錄檔看的，呼叫端不得
+ * 直接顯示給使用者——要顯示什麼由呼叫端自行決定，這裡就是那個決定。
+ */
+function messageFor(code: string): string {
+  switch (code) {
+    case 'VALIDATION_FAILED':
+      return '醫囑內容不能是空白'
+    case 'NOT_FOUND':
+      return '這筆資料已經不存在，請重新整理'
+    default:
+      return '儲存失敗，請稍後再試'
+  }
+}
+
+/**
  * 正在編輯中的內容。id 為 null 代表新增一筆，有值代表在改哪一筆——
  * 兩種情況共用同一個輸入欄位與儲存按鈕，因為對使用者來說是同一件事。
  */
@@ -36,6 +53,7 @@ interface Draft {
 function OrderDialog({ patient, onClose }: { patient: Patient; onClose: () => void }) {
   const [orders, setOrders] = useState<Order[]>([])
   const [draft, setDraft] = useState<Draft | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -67,6 +85,12 @@ function OrderDialog({ patient, onClose }: { patient: Patient; onClose: () => vo
             body: JSON.stringify({ message }),
           })
 
+    if (!res.ok) {
+      const failure: { code: string } = await res.json()
+      setError(messageFor(failure.code))
+      return
+    }
+
     const saved: Order = await res.json()
 
     setOrders((current) =>
@@ -75,6 +99,7 @@ function OrderDialog({ patient, onClose }: { patient: Patient; onClose: () => vo
         : current.map((order) => (order.id === id ? saved : order)),
     )
     setDraft(null)
+    setError(null)
   }
 
   return (
@@ -83,7 +108,10 @@ function OrderDialog({ patient, onClose }: { patient: Patient; onClose: () => vo
         <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
           <span>{patient.name}</span>
           {/* 圖示按鈕沒有文字內容，aria-label 是螢幕閱讀器唯一的線索。 */}
-          <IconButton aria-label="新增醫囑" onClick={() => setDraft({ id: null, message: '' })}>
+          <IconButton aria-label="新增醫囑" onClick={() => {
+              setDraft({ id: null, message: '' })
+              setError(null)
+            }}>
             <AddIcon />
           </IconButton>
         </Stack>
@@ -98,7 +126,10 @@ function OrderDialog({ patient, onClose }: { patient: Patient; onClose: () => vo
             {orders.map((order) => (
               <ListItemButton
                 key={order.id}
-                onClick={() => setDraft({ id: order.id, message: order.message })}
+                onClick={() => {
+                  setDraft({ id: order.id, message: order.message })
+                  setError(null)
+                }}
               >
                 <ListItemText primary={order.message} />
               </ListItemButton>
@@ -116,6 +147,11 @@ function OrderDialog({ patient, onClose }: { patient: Patient; onClose: () => vo
               multiline
               autoFocus
             />
+            {error && (
+              <Typography color="error" role="alert">
+                {error}
+              </Typography>
+            )}
             <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
               <Button variant="contained" onClick={() => void save(draft)}>
                 儲存
