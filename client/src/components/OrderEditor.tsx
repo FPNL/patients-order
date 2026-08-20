@@ -17,10 +17,8 @@ export default function OrderEditor({ message, error, onChange, onSave }: Props)
     // 這是 Dialog 裡獨立的一段畫面，旁邊沒有別的東西要分開，所以不再包一層
     // 底色，輸入框直接佔滿整段。
     <Stack spacing={1.5}>
-      {/* filled 變體的浮動標籤直接落在輸入框自己的底色上，不像 outlined
-          會在邊框缺口露出底下的顏色。 */}
       <TextField
-        label="醫囑內容"
+        placeholder="醫囑內容"
         value={message}
         onChange={(event) => onChange(event.target.value)}
         variant="filled"
@@ -31,8 +29,15 @@ export default function OrderEditor({ message, error, onChange, onSave }: Props)
         slotProps={{
           // 底線是一條直線，畫在圓角輸入框上會超出圓角。改用整圈邊框。
           input: { disableUnderline: true },
+          // aria-label 要落在 textarea 本身；掛在 TextField 上只會跑到外層的
+          // div，螢幕閱讀器讀不到。
+          htmlInput: { 'aria-label': '醫囑內容' },
         }}
         sx={{
+          // 高度由 MUI 的 autosize 算好塞在 style 裡，textarea 自己不需要捲軸；
+          // 但 MUI 沒有一併寫死 overflow，瀏覽器預設的 auto 遇上「內容高度
+          // 剛好等於框高」這種臨界值，會在空白的框裡冒出一條捲不動的捲軸。
+          '& textarea': { overflow: 'hidden' },
           '& .MuiFilledInput-root': {
             borderRadius: 3,
             border: 1,
