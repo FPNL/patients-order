@@ -201,6 +201,34 @@ describe('POST /api/patients/:patientId/orders', () => {
     })
   })
 
+  // 這顆不是紅燈逼出來的：上一顆的最小實作用的是 z.string().trim()，
+  // 「前後空白被去掉再存」是跟著 trim 一起生效的。單獨釘住它，否則整份
+  // 測試看得到的只有「空白被擋下來」，存進去的內容有沒有被去空白沒有人
+  // 在看。
+  //
+  // 特意再打一次 GET 而不是只看 201 的 body：兩者都是 trim 過的，才排除
+  // 「回應是 trim 的、資料庫存的是原樣」這種只在回應上做手腳的實作。
+  it('新增時去除前後空白，存入的是去除後的內容', async () => {
+    const app = createApp()
+
+    const created = await request(app)
+      .post('/api/patients/1/orders')
+      .send({ message: '  超過120請施打8u  ' })
+
+    expect(created.status).toBe(201)
+    expect(created.body).toEqual({
+      id: expect.any(Number),
+      patientId: 1,
+      message: '超過120請施打8u',
+    })
+
+    const listed = await request(app).get('/api/patients/1/orders')
+
+    expect(listed.body).toEqual([
+      { id: created.body.id, patientId: 1, message: '超過120請施打8u' },
+    ])
+  })
+
   // 計畫：
   // 1. orderInput 加上 .strict()，未知欄位就會產生一個 unrecognized_keys
   //    的 issue。
@@ -381,5 +409,32 @@ describe('PUT /api/orders/:orderId', () => {
         message: ['Too small: expected string to have >=1 characters'],
       },
     })
+  })
+
+  // 與新增那顆同樣不是紅燈逼出來的，理由也一樣：改寫這一側的 trim 是跟著
+  // ReqReplaceOrder 的 z.string().trim() 生效的，沒有測試看得到它。
+  it('改寫時去除前後空白，存入的是去除後的內容', async () => {
+    const app = createApp()
+
+    const created = await request(app)
+      .post('/api/patients/1/orders')
+      .send({ message: '超過120請施打8u' })
+
+    const res = await request(app)
+      .put(`/api/orders/${created.body.id}`)
+      .send({ message: '  超過150請施打10u  ' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({
+      id: created.body.id,
+      patientId: 1,
+      message: '超過150請施打10u',
+    })
+
+    const listed = await request(app).get('/api/patients/1/orders')
+
+    expect(listed.body).toEqual([
+      { id: created.body.id, patientId: 1, message: '超過150請施打10u' },
+    ])
   })
 })
