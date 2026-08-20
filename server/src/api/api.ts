@@ -44,6 +44,13 @@ export function toFieldErrors(error: z.ZodError): Record<string, string[]> {
   return fieldErrors
 }
 
+function isJsonParseError(err: unknown): boolean {
+  return (
+    err instanceof SyntaxError &&
+    (err as SyntaxError & { type?: string }).type === 'entity.parse.failed'
+  )
+}
+
 /**
  * 把 ApiError 序列化成契約規定的 { code, message, data }。
  *
@@ -56,6 +63,17 @@ export function errorHandler(
   res: Response,
   next: NextFunction,
 ): void {
+  // express.json() 解析失敗時丟的是帶 type: 'entity.parse.failed' 的
+  // SyntaxError。用 type 而不是 instanceof SyntaxError 判別：SyntaxError
+  // 是 JS 內建型別，任何地方的語法錯誤都是它，範圍太寬。
+  //
+  // 不把 err.message 透出去——那是 Node JSON 解析器的內部細節
+  // （'Expected property name or ... at position 2'）。契約規定 message
+  // 由我們決定，所以與 zod 驗證失敗時用同一個字串。
+  if (isJsonParseError(err)) {
+    err = new ApiError(400, 'VALIDATION_FAILED', 'invalid request body')
+  }
+
   if (err instanceof ApiError) {
     res.status(err.status).json({
       code: err.code,
