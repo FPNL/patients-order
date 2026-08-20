@@ -80,11 +80,19 @@ export function createApp(db: Kysely<Database>): Express {
       throw new ApiError(404, 'NOT_FOUND', 'patient not found')
     }
 
-    const body = orderInput.parse(req.body)
+    const body = orderInput.safeParse(req.body)
+    if (!body.success) {
+      throw new ApiError(
+        400,
+        'VALIDATION_FAILED',
+        'invalid request body',
+        z.flattenError(body.error).fieldErrors,
+      )
+    }
 
     const order = await db
       .insertInto('orders')
-      .values({ patient_id: params.data.patientId, message: body.message })
+      .values({ patient_id: params.data.patientId, message: body.data.message })
       .returningAll()
       .executeTakeFirstOrThrow()
 
