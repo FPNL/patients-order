@@ -192,3 +192,34 @@ describe('POST /api/patients/:patientId/orders', () => {
     })
   })
 })
+
+describe('醫囑的順序', () => {
+  // 計畫：
+  // 1. 新增 migration 給 orders 加一欄
+  //    created_at timestamptz not null default now()。契約不暴露這個值，
+  //    它只是排序依據——「依建立時間由舊到新」是契約對呼叫端的承諾，
+  //    承諾的是順序，不是欄位。
+  // 2. GET 那條的查詢加上 .orderBy('created_at').orderBy('id')。
+  //    第二個 orderBy 是必要的：同一個 transaction 裡 now() 回的是
+  //    transaction 開始時間，三筆會拿到完全相同的 created_at，只靠它排
+  //    順序不穩定。id 是遞增的 serial，拿來當決勝依據。
+  //
+  // 這顆同時是 GET 第一次回非空清單，所以也釘住了 Order 的完整形狀
+  // （id / patientId / message 三個欄位、snake_case 轉 camelCase）。
+  it('回傳多筆醫囑時依建立時間由舊到新', async () => {
+    const app = createApp(db)
+
+    for (const message of ['第一筆', '第二筆', '第三筆']) {
+      await request(app).post('/api/patients/1/orders').send({ message })
+    }
+
+    const res = await request(app).get('/api/patients/1/orders')
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([
+      { id: 1, patientId: 1, message: '第一筆' },
+      { id: 2, patientId: 1, message: '第二筆' },
+      { id: 3, patientId: 1, message: '第三筆' },
+    ])
+  })
+})
