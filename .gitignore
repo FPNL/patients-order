@@ -224,3 +224,4 @@ npm-debug.log*
 .env.*.local
 .vite/
 .idea/
+config.json

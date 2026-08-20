@@ -1,18 +1,22 @@
 import { createApp } from './app'
+import { ConfigError, loadConfig } from './config'
 import { createDatabase } from './db/database'
 import { migrateToLatest } from './db/migrator'
 
-const port = Number(process.env.PORT ?? 3001)
-const connectionString = process.env.DATABASE_URL
-
-if (!connectionString) {
-  console.error('DATABASE_URL is not set; copy .env.example to .env first')
-  process.exit(1)
+let config
+try {
+  config = loadConfig(process.argv.slice(2))
+} catch (err) {
+  if (err instanceof ConfigError) {
+    console.error(err.message)
+    process.exit(1)
+  }
+  throw err
 }
 
-const db = createDatabase(connectionString)
+const db = createDatabase(config.database.url)
 await migrateToLatest(db)
 
-createApp(db).listen(port, () => {
-  console.log(`server listening on http://localhost:${port}`)
+createApp(db).listen(config.port, () => {
+  console.log(`server listening on http://localhost:${config.port}`)
 })

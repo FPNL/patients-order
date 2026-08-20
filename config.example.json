@@ -1,0 +1,6 @@
+{
+  "port": 3001,
+  "database": {
+    "url": "postgresql://app:app@localhost:5432/interview"
+  }
+}
