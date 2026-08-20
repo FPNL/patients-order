@@ -6,6 +6,14 @@ info:
   description: |
     住民（patient）與其醫囑（order）的讀寫介面。
 
+    ## 錯誤回應
+
+    所有錯誤回應**都是**同一個形狀（`Error`），包含沒有被任何端點命中的路徑
+    在內。呼叫端**可以**假設任何非 2xx 的回應都能以 `Error` 解析。
+
+    各端點文件中列出的錯誤，都是該端點可能回傳的完整清單。此外，任何路徑
+    在任何時候都可能回傳 `INTERNAL_ERROR`。
+
     ## 呼叫端的法遵與安全義務
 
     - 醫囑內容是使用者可自由輸入的文字。後端**不會**對內容做 HTML 轉義，
@@ -35,13 +43,15 @@ paths:
       operationId: listPatients
       responses:
         '200':
-          description: 全部住民。
+          description: 全部住民。沒有任何住民時回傳空陣列。
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/Patient'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /patients/{patientId}/orders:
     parameters:
@@ -52,19 +62,26 @@ paths:
       description: |
         回傳指定住民底下的全部醫囑，**依建立時間由舊到新**排序。
 
+        住民存在但尚未有任何醫囑時**會**回傳空陣列，**不會**回傳 `NOT_FOUND`；
+        `NOT_FOUND` 只代表該住民不存在。
+
         一次回完整份、不分頁，要顯示幾筆、如何分批呈現由呼叫端自行決定。
       operationId: listOrdersOfPatient
       responses:
         '200':
-          description: 該住民的全部醫囑，依建立時間由舊到新。
+          description: 該住民的全部醫囑，依建立時間由舊到新。該住民沒有醫囑時為空陣列。
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
     post:
       summary: 為指定住民新增一筆醫囑
@@ -91,6 +108,8 @@ paths:
           $ref: '#/components/responses/ValidationFailed'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /orders/{orderId}:
     parameters:
@@ -123,6 +142,8 @@ paths:
           $ref: '#/components/responses/ValidationFailed'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
 components:
   parameters:
@@ -130,7 +151,10 @@ components:
       name: patientId
       in: path
       required: true
-      description: 住民的識別碼，取自住民清單回傳的 `id`。
+      description: |
+        住民的識別碼，取自住民清單回傳的 `id`。
+        **必須**是整數；不是整數時**會**回傳 `VALIDATION_FAILED`，
+        而不是 `NOT_FOUND`。
       schema:
         type: integer
         format: int32
@@ -139,7 +163,10 @@ components:
       name: orderId
       in: path
       required: true
-      description: 醫囑的識別碼，取自醫囑清單或新增醫囑回傳的 `id`。
+      description: |
+        醫囑的識別碼，取自醫囑清單或新增醫囑回傳的 `id`。
+        **必須**是整數；不是整數時**會**回傳 `VALIDATION_FAILED`，
+        而不是 `NOT_FOUND`。
       schema:
         type: integer
         format: int32
@@ -181,7 +208,7 @@ components:
         message:
           type: string
           minLength: 1
-          maxLength: 500
+          maxLength: 4000
           description: |
             醫囑內容，原樣存入、原樣回傳，後端**不會**做任何轉義或正規化。
           examples: [超過120請施打8u]
@@ -189,53 +216,133 @@ components:
     OrderInput:
       type: object
       required: [message]
+      additionalProperties: false
+      description: |
+        **不得**帶入這裡未定義的欄位。多帶的欄位**不會**被忽略，整個請求
+        **會**以 `VALIDATION_FAILED` 拒絕，該欄位名稱會出現在 `data` 中。
       properties:
         message:
           type: string
           minLength: 1
-          maxLength: 500
+          maxLength: 4000
           description: |
-            醫囑內容。**必須**有值，長度**必須**介於 1 到 500 個字元，
+            醫囑內容。**必須**有值，長度**必須**介於 1 到 4000 個字元，
             前後空白**不會**被去除，會原樣存入。
           examples: [超過120請施打8u]
 
-    ValidationError:
+    Error:
       type: object
-      required: [formErrors, fieldErrors]
-      description: |
-        請求 body 未通過驗證時的內容。
+      required: [code, message, data]
       properties:
-        formErrors:
-          type: array
-          description: 不屬於任何單一欄位的錯誤訊息。
-          items:
-            type: string
-        fieldErrors:
-          type: object
+        code:
+          type: string
+          enum:
+            - VALIDATION_FAILED
+            - NOT_FOUND
+            - ROUTE_NOT_FOUND
+            - INTERNAL_ERROR
           description: |
-            鍵是未通過驗證的欄位名稱，值是該欄位的所有錯誤訊息。
-            通過驗證的欄位**不會**出現在這裡。
+            錯誤的種類，供呼叫端做程式判斷。這是**唯一**適合拿來分支的欄位。
 
-            訊息文字由驗證器產生，會隨其版本變動。呼叫端**不得**依賴訊息
-            文字做程式判斷，只能原樣呈現或忽略；要判斷是哪個欄位出錯，
-            請用這裡的鍵。
-          additionalProperties:
-            type: array
-            items:
-              type: string
+            - `VALIDATION_FAILED`（400）：請求不成立。路徑參數不是整數、
+              body 不是合法 JSON、欄位缺漏或不符規格、帶了未定義的欄位，
+              都屬於這一類。後端**不會**建立或改寫任何資料。
+            - `NOT_FOUND`（404）：路徑參數指向的住民或醫囑不存在。這是資料
+              狀態，呼叫端**應該**呈現「查無資料」給使用者。
+            - `ROUTE_NOT_FOUND`（404）：請求的路徑不屬於本 API 的任何端點。
+              這代表呼叫端組錯了 URL，**不是**資料狀態。
+            - `INTERNAL_ERROR`（500）：後端發生未預期的錯誤。呼叫端**可以**
+              重試，但**不保證**重試會成功。
+
+            遇到未列出的值時，呼叫端**必須**當成未預期的錯誤處理，
+            **不得**因此中斷。
+          examples: [VALIDATION_FAILED]
+        message:
+          type: string
+          description: |
+            以英文寫成的錯誤說明，讀者是開發者與紀錄檔。
+
+            **不是**面向使用者的文案，呼叫端**不得**直接顯示給使用者；要顯示
+            什麼**必須**由呼叫端依 `code` 自行決定。
+
+            同一個 `code` 在不同情境下的文字**可能不同**，文字也**可能**隨
+            版本變動。呼叫端**不得**依賴這裡的文字做程式判斷。
+
+            `code` 為 `INTERNAL_ERROR` 時，這裡**一律**是固定的通用字串，
+            **不會**包含任何後端內部細節。
+          examples: [invalid request body]
+        data:
+          type: object
+          additionalProperties: true
+          description: |
+            這次錯誤的結構化細節。**一定會出現**；沒有細節可提供時是空物件，
+            呼叫端**不必**檢查這個欄位是否存在。
+
+            內容依 `code` 而定：
+
+            - `VALIDATION_FAILED`：鍵是未通過驗證的欄位名稱，值是該欄位的
+              所有錯誤訊息（字串陣列，至少一則）。通過驗證的欄位**不會**
+              出現。欄位名稱取自請求 body 或路徑參數。
+            - `NOT_FOUND`、`ROUTE_NOT_FOUND`、`INTERNAL_ERROR`：空物件。
+
+            此處的訊息文字由驗證器產生，會隨其版本變動。呼叫端**不得**依賴
+            訊息文字做程式判斷；要判斷是哪個欄位出錯，**必須**用這裡的鍵。
           examples:
             - message: ['Too small: expected string to have >=1 characters']
 
   responses:
     ValidationFailed:
       description: |
-        請求 body 未通過驗證。後端**不會**建立或改寫任何資料。
+        請求不成立。後端**不會**建立或改寫任何資料。
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ValidationError'
+            $ref: '#/components/schemas/Error'
+          examples:
+            欄位不符規格:
+              value:
+                code: VALIDATION_FAILED
+                message: invalid request body
+                data:
+                  message: ['Too small: expected string to have >=1 characters']
+            帶了未定義的欄位:
+              value:
+                code: VALIDATION_FAILED
+                message: invalid request body
+                data:
+                  Message: ['Unrecognized key: "Message"']
+            路徑參數不是整數:
+              value:
+                code: VALIDATION_FAILED
+                message: invalid path parameter
+                data:
+                  patientId: ['Invalid input: expected number, received NaN']
 
     NotFound:
       description: |
-        路徑上的識別碼找不到對應的住民或醫囑。後端**不會**建立或改寫任何資料。
-        此回應**沒有** body。
+        路徑參數指向的住民或醫囑不存在。後端**不會**建立或改寫任何資料。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            住民不存在:
+              value:
+                code: NOT_FOUND
+                message: patient not found
+                data: {}
+
+    InternalError:
+      description: |
+        後端發生未預期的錯誤。是否已經建立或改寫資料**不保證**，
+        呼叫端**必須**在重試前重新確認資料狀態。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            未預期的錯誤:
+              value:
+                code: INTERNAL_ERROR
+                message: internal server error
+                data: {}
