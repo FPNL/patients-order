@@ -124,4 +124,31 @@ describe('POST /api/patients/:patientId/orders', () => {
       message: '超過120請施打8u',
     })
   })
+
+  // 計畫：把 orderInput.parse 換成 safeParse，驗不過就丟
+  // ApiError(400, 'VALIDATION_FAILED', 'invalid request body',
+  // z.flattenError(err).fieldErrors)——與路徑參數那條同一個模式，
+  // 只有 message 欄位不同（'invalid request body' vs
+  // 'invalid path parameter'）。
+  //
+  // 現在 parse 丟出的 ZodError 會被 error middleware 的 next(err) 交還
+  // Express，回的是 500。這顆要把它變成契約規定的 400。
+  //
+  // data 裡的訊息是實際跑 zod 4.4.3 取得的：空字串得到
+  // 'Too small: expected string to have >=1 characters'。同時也跑了缺欄位
+  // 與超長兩種，但沒有測試要求，不寫進斷言。
+  it('醫囑內容為空字串時回 400 與 VALIDATION_FAILED', async () => {
+    const res = await request(createApp(db))
+      .post('/api/patients/1/orders')
+      .send({ message: '' })
+
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({
+      code: 'VALIDATION_FAILED',
+      message: 'invalid request body',
+      data: {
+        message: ['Too small: expected string to have >=1 characters'],
+      },
+    })
+  })
 })
