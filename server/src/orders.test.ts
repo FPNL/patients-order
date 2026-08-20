@@ -228,3 +228,35 @@ describe('醫囑的順序', () => {
     ])
   })
 })
+
+describe('PUT /api/orders/:orderId', () => {
+  // 計畫：
+  // 1. 加一組 orderIdParam（與 patientIdParam 同形狀，鍵名不同）。
+  // 2. createApp 加一條 app.put('/api/orders/:orderId')：驗路徑參數、
+  //    驗 body（沿用 orderInput）、updateTable('orders').set({ message })
+  //    .where('id','=',orderId).returningAll()。
+  // 3. 回 200 與改寫後的醫囑。
+  //
+  // 醫囑不存在的分支不碰，留給第 12 顆——executeTakeFirst 回 undefined
+  // 時目前會炸，那是下一顆要處理的。
+  //
+  // 這顆也釘住契約的一條承諾：改寫內容不會動到 id 與 patientId。
+  it('改寫成功時回 200 與改寫後的醫囑', async () => {
+    const app = createApp(db)
+
+    const created = await request(app)
+      .post('/api/patients/1/orders')
+      .send({ message: '超過120請施打8u' })
+
+    const res = await request(app)
+      .put(`/api/orders/${created.body.id}`)
+      .send({ message: '超過150請施打10u' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({
+      id: created.body.id,
+      patientId: 1,
+      message: '超過150請施打10u',
+    })
+  })
+})
