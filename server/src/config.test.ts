@@ -2,7 +2,8 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { ConfigError, loadConfig, parseConfig } from './config'
+import * as config from './config'
+import { ConfigError, configPathFromArgv, parseConfig, readConfig } from './config'
 
 const minimal = { database: { url: 'postgresql://app:app@localhost:5432/interview' } }
 const source = (extra: Record<string, unknown> = {}) =>
@@ -105,37 +106,48 @@ describe('parseConfig 拒絕不合規格的設定', () => {
   })
 })
 
-describe('loadConfig 讀命令列與檔案', () => {
+describe('configPathFromArgv 取命令列的路徑', () => {
+  it('取得 --conf 指定的路徑', () => {
+    expect(configPathFromArgv(['--conf', '/etc/app.json'])).toBe('/etc/app.json')
+  })
+
+  it('沒給 --conf 時說明缺什麼', () => {
+    expect(() => configPathFromArgv([])).toThrow(ConfigError)
+    expect(() => configPathFromArgv([])).toThrow('missing required option --conf')
+  })
+
+  it('給了不認得的選項時失敗，而不是默默忽略', () => {
+    expect(() => configPathFromArgv(['--conf', '/etc/app.json'])).not.toThrow()
+    expect(() => configPathFromArgv(['--conf', '/etc/app.json', '--typo', '1'])).toThrow()
+  })
+})
+
+describe('readConfig 讀檔並設定 Default', () => {
   const writeTemp = (contents: string): string => {
     const path = join(mkdtempSync(join(tmpdir(), 'config-test-')), 'config.json')
     writeFileSync(path, contents)
     return path
   }
 
-  it('讀得到 --conf 指定的檔案', () => {
-    const path = writeTemp(source({ port: 4321 }))
+  it('讀完之後其他地方可以直接用 Default', () => {
+    readConfig(writeTemp(source({ port: 4321 })))
 
-    expect(loadConfig(['--conf', path]).port).toBe(4321)
+    expect(config.Default.port).toBe(4321)
+    expect(config.Default.max_request_body).toBe(10 * 1024 * 1024)
   })
 
-  it('沒給 --conf 時說明缺什麼', () => {
-    expect(() => loadConfig([])).toThrow(ConfigError)
-    expect(() => loadConfig([])).toThrow('missing required option --conf')
+  it('檔案讀不到時說明是哪個路徑，且不動 Default', () => {
+    readConfig(writeTemp(source({ port: 4321 })))
+
+    expect(() => readConfig('/no/such/file.json')).toThrow(ConfigError)
+    expect(() => readConfig('/no/such/file.json')).toThrow('cannot read /no/such/file.json')
+    expect(config.Default.port).toBe(4321)
   })
 
-  it('檔案讀不到時說明是哪個路徑', () => {
-    expect(() => loadConfig(['--conf', '/no/such/file.json'])).toThrow(ConfigError)
-    expect(() => loadConfig(['--conf', '/no/such/file.json'])).toThrow(
-      'cannot read /no/such/file.json',
-    )
-  })
+  it('內容不合規格時不動 Default', () => {
+    readConfig(writeTemp(source({ port: 4321 })))
 
-  it('給了不認得的命令列選項時失敗，而不是默默忽略', () => {
-    // 用一個真的存在且合法的設定檔：路徑不存在的話會因為讀檔失敗而丟錯，
-    // 這顆測試就會為了錯的理由通過——parseArgs 改成不嚴格也照樣是綠的。
-    const path = writeTemp(source())
-
-    expect(() => loadConfig(['--conf', path])).not.toThrow()
-    expect(() => loadConfig(['--conf', path, '--typo', '1'])).toThrow()
+    expect(() => readConfig(writeTemp('{"typo":1}'))).toThrow(ConfigError)
+    expect(config.Default.port).toBe(4321)
   })
 })

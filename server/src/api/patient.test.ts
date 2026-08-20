@@ -2,12 +2,19 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import type { Kysely } from 'kysely'
 import { createApp } from '../app'
+import { useConfig } from '../config'
+import { useDatabase } from '../db/database'
 import { createTestDatabase } from '../db/test-database'
 import type { Database } from '../db/schema'
 
-// 這些測試都不關心 body 上限，用一個寬鬆到碰不到的值。
-// 上限本身的行為由 api.test.ts 裡那顆 413 的測試負責。
-const appOptions = { maxRequestBody: 1024 * 1024 }
+// createApp 讀的是 config 與 database 的 Default，所以測試在這裡備妥它們。
+// Vitest 預設每個測試檔有獨立的 module registry，這些全域不會跨檔互相干擾。
+const testConfig = {
+  port: 0,
+  database: { url: 'unused: 測試走 PGlite' },
+  max_request_body: 1024 * 1024,
+  shutdown_timeout: 10_000,
+}
 
 let db: Kysely<Database>
 
@@ -15,6 +22,8 @@ let db: Kysely<Database>
 // 任何測試會寫資料，所以還不需要測試之間的隔離手段。
 beforeAll(async () => {
   db = await createTestDatabase()
+  useDatabase(db)
+  useConfig(testConfig)
 })
 afterAll(async () => {
   await db.destroy()
@@ -22,7 +31,7 @@ afterAll(async () => {
 
 describe('GET /api/patients', () => {
   it('回 200，body 是 JSON 陣列', async () => {
-    const res = await request(createApp(db, appOptions)).get('/api/patients')
+    const res = await request(createApp()).get('/api/patients')
 
     expect(res.status).toBe(200)
     expect(res.headers['content-type']).toMatch(/^application\/json/)
@@ -40,7 +49,7 @@ describe('GET /api/patients', () => {
   // 依 id 由小到大是契約要補上的承諾（目前契約沒寫住民清單的順序），
   // 補上之後這裡才能斷言完整的陣列而不只是集合。
   it('回傳 5 位固定住民，依 id 由小到大', async () => {
-    const res = await request(createApp(db, appOptions)).get('/api/patients')
+    const res = await request(createApp()).get('/api/patients')
 
     expect(res.status).toBe(200)
     expect(res.body).toEqual([

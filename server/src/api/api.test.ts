@@ -3,19 +3,28 @@ import request from 'supertest'
 import { PGlite } from '@electric-sql/pglite'
 import { Kysely } from 'kysely'
 import { createApp } from '../app'
+import { useConfig } from '../config'
+import { useDatabase } from '../db/database'
 import { PGliteDialect } from '../db/pglite-dialect'
 import { createTestDatabase } from '../db/test-database'
 import type { Database } from '../db/schema'
 
-// 這些測試都不關心 body 上限，用一個寬鬆到碰不到的值。
-// 上限本身的行為由 api.test.ts 裡那顆 413 的測試負責。
-const appOptions = { maxRequestBody: 1024 * 1024 }
+// createApp 讀的是 config 與 database 的 Default，所以測試在這裡備妥它們。
+// Vitest 預設每個測試檔有獨立的 module registry，這些全域不會跨檔互相干擾。
+const testConfig = {
+  port: 0,
+  database: { url: 'unused: 測試走 PGlite' },
+  max_request_body: 1024 * 1024,
+  shutdown_timeout: 10_000,
+}
 
 let db: Kysely<Database>
 
 // 這個檔案測的是錯誤信封的兜底，沒有任何測試會寫資料，所以不需要隔離。
 beforeAll(async () => {
   db = await createTestDatabase()
+  useDatabase(db)
+  useConfig(testConfig)
 })
 afterAll(async () => {
   await db.destroy()
@@ -32,7 +41,7 @@ describe('沒有被任何端點命中的路徑', () => {
   // 解析會直接炸——契約承諾「所有錯誤回應都是同一個形狀，包含沒有被任何
   // 端點命中的路徑在內」，這顆就是在守那句話。
   it('回 404 與 ROUTE_NOT_FOUND', async () => {
-    const res = await request(createApp(db, appOptions)).get('/api/no-such-thing')
+    const res = await request(createApp()).get('/api/no-such-thing')
 
     expect(res.status).toBe(404)
     expect(res.headers['content-type']).toMatch(/^application\/json/)
@@ -55,7 +64,7 @@ describe('body 不是合法的 JSON', () => {
   // 現在這個錯誤會走 errorHandler 的 next(err) 交還 Express，回的是預設的
   // HTML 錯誤頁，呼叫端解析會炸。
   it('回 400 與 VALIDATION_FAILED', async () => {
-    const res = await request(createApp(db, appOptions))
+    const res = await request(createApp())
       .post('/api/patients/1/orders')
       .set('Content-Type', 'application/json')
       .send('{ 這不是 JSON')
@@ -86,11 +95,16 @@ describe('未預期的錯誤', () => {
   // 契約在 message 欄位上明寫：code 為 INTERNAL_ERROR 時一律是固定的通用
   // 字串，不會包含任何後端內部細節。
   it('回 500 與 INTERNAL_ERROR，且不洩漏內部細節', async () => {
+    // 暫時把 Default 換成沒有套用 migration 的資料庫，用完換回來，
+    // 免得後面的測試也拿到它。
     const emptyDb = new Kysely<Database>({
       dialect: new PGliteDialect(new PGlite()),
     })
+    useDatabase(emptyDb)
 
-    const res = await request(createApp(emptyDb, appOptions)).get('/api/patients')
+    const res = await request(createApp()).get('/api/patients')
+
+    useDatabase(db)
 
     expect(res.status).toBe(500)
     expect(res.headers['content-type']).toMatch(/^application\/json/)
@@ -113,8 +127,8 @@ describe('body 超過大小上限', () => {
   // 1. config 新增 max_request_body，預設 "10MB"，用 bytes 解析成位元組
   //    數。bytes 是 express.json({ limit }) 內部本來就在用的解析器，
   //    KB/MB/GB 一律 1024 進位。
-  // 2. createApp 改成收第二個參數，把上限傳給 express.json({ limit })。
-  //    這顆測試配一個很小的上限，才不用真的送 10MB。
+  // 2. createApp 從 config.Default 讀上限傳給 express.json({ limit })。
+  //    這顆測試暫時換上一份上限很小的設定，才不用真的送 10MB。
   // 3. errorHandler 多認一種：express.json() 超過上限時丟的錯誤帶
   //    type: 'entity.too.large'，轉成
   //    ApiError(413, 'PAYLOAD_TOO_LARGE', 'request body too large')。
@@ -124,7 +138,9 @@ describe('body 超過大小上限', () => {
   //
   // data 是空物件：後端根本沒讀 body 的內容，說不出是哪個欄位有問題。
   it('回 413 與 PAYLOAD_TOO_LARGE', async () => {
-    const app = createApp(db, { maxRequestBody: 1024 })
+    useConfig({ ...testConfig, max_request_body: 1024 })
+    const app = createApp()
+    useConfig(testConfig)
 
     const res = await request(app)
       .post('/api/patients/1/orders')

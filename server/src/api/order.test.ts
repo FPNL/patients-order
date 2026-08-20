@@ -2,17 +2,26 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { sql, type Kysely } from 'kysely'
 import { createApp } from '../app'
+import { useConfig } from '../config'
+import { useDatabase } from '../db/database'
 import { createTestDatabase } from '../db/test-database'
 import type { Database } from '../db/schema'
 
-// 這些測試都不關心 body 上限，用一個寬鬆到碰不到的值。
-// 上限本身的行為由 api.test.ts 裡那顆 413 的測試負責。
-const appOptions = { maxRequestBody: 1024 * 1024 }
+// createApp 讀的是 config 與 database 的 Default，所以測試在這裡備妥它們。
+// Vitest 預設每個測試檔有獨立的 module registry，這些全域不會跨檔互相干擾。
+const testConfig = {
+  port: 0,
+  database: { url: 'unused: 測試走 PGlite' },
+  max_request_body: 1024 * 1024,
+  shutdown_timeout: 10_000,
+}
 
 let db: Kysely<Database>
 
 beforeAll(async () => {
   db = await createTestDatabase()
+  useDatabase(db)
+  useConfig(testConfig)
 })
 afterAll(async () => {
   await db.destroy()
@@ -46,7 +55,7 @@ describe('GET /api/patients/:patientId/orders', () => {
   // NOT_FOUND，是兩者最容易被實作搞混的地方。先把 200 [] 釘住，
   // 下一顆再釘 404，兩者的界線就被測試框死了。
   it('住民存在但尚未有醫囑時回 200 與空陣列', async () => {
-    const res = await request(createApp(db, appOptions)).get('/api/patients/1/orders')
+    const res = await request(createApp()).get('/api/patients/1/orders')
 
     expect(res.status).toBe(200)
     expect(res.headers['content-type']).toMatch(/^application\/json/)
@@ -67,7 +76,7 @@ describe('GET /api/patients/:patientId/orders', () => {
   // 契約規定 data 必填、NOT_FOUND 時是空物件，所以這裡斷言完整的 body
   // 而不只是 code。
   it('住民不存在時回 404 與 NOT_FOUND', async () => {
-    const res = await request(createApp(db, appOptions)).get('/api/patients/99/orders')
+    const res = await request(createApp()).get('/api/patients/99/orders')
 
     expect(res.status).toBe(404)
     expect(res.headers['content-type']).toMatch(/^application\/json/)
@@ -92,7 +101,7 @@ describe('GET /api/patients/:patientId/orders', () => {
   // zod 4.4.3 得到 'Invalid input: expected number, received NaN'，
   // 原樣寫進斷言。
   it('住民 id 不是整數時回 400 與 VALIDATION_FAILED', async () => {
-    const res = await request(createApp(db, appOptions)).get('/api/patients/abc/orders')
+    const res = await request(createApp()).get('/api/patients/abc/orders')
 
     expect(res.status).toBe(400)
     expect(res.body).toEqual({
@@ -124,7 +133,7 @@ describe('POST /api/patients/:patientId/orders', () => {
   // rollback 影響，實際值取決於這個檔案先前跑過幾次成功的 insert。
   // 這裡只釘住「是個正整數」，確切的值由後端決定。
   it('新增成功時回 201 與建立的醫囑', async () => {
-    const res = await request(createApp(db, appOptions))
+    const res = await request(createApp())
       .post('/api/patients/1/orders')
       .send({ message: '超過120請施打8u' })
 
@@ -151,7 +160,7 @@ describe('POST /api/patients/:patientId/orders', () => {
   // 'Too small: expected string to have >=1 characters'。同時也跑了缺欄位
   // 與超長兩種，但沒有測試要求，不寫進斷言。
   it('醫囑內容為空字串時回 400 與 VALIDATION_FAILED', async () => {
-    const res = await request(createApp(db, appOptions))
+    const res = await request(createApp())
       .post('/api/patients/1/orders')
       .send({ message: '' })
 
@@ -178,7 +187,7 @@ describe('POST /api/patients/:patientId/orders', () => {
   // 'Unrecognized key: "Message"'，兩個以上會變成複數並列在同一句。
   // 這顆只送一個未知欄位，所以斷言單數形。
   it('帶了未定義的欄位時回 400 與 VALIDATION_FAILED', async () => {
-    const res = await request(createApp(db, appOptions))
+    const res = await request(createApp())
       .post('/api/patients/1/orders')
       .send({ message: '超過120請施打8u', Message: '拼錯的欄位名' })
 
@@ -193,7 +202,7 @@ describe('POST /api/patients/:patientId/orders', () => {
   })
 
   it('住民不存在時回 404 與 NOT_FOUND', async () => {
-    const res = await request(createApp(db, appOptions))
+    const res = await request(createApp())
       .post('/api/patients/99/orders')
       .send({ message: '超過120請施打8u' })
 
@@ -220,7 +229,7 @@ describe('醫囑的順序', () => {
   // 這顆同時是 GET 第一次回非空清單，所以也釘住了 Order 的完整形狀
   // （id / patientId / message 三個欄位、snake_case 轉 camelCase）。
   it('回傳多筆醫囑時依建立時間由舊到新', async () => {
-    const app = createApp(db, appOptions)
+    const app = createApp()
 
     // 不能寫死 id：Postgres 的 sequence 不受 transaction rollback 影響，
     // 前面幾顆測試消耗掉的 nextval 不會還回來。這正是契約寫「不承諾連續」
@@ -255,7 +264,7 @@ describe('PUT /api/orders/:orderId', () => {
   //
   // 這顆也釘住契約的一條承諾：改寫內容不會動到 id 與 patientId。
   it('改寫成功時回 200 與改寫後的醫囑', async () => {
-    const app = createApp(db, appOptions)
+    const app = createApp()
 
     const created = await request(app)
       .post('/api/patients/1/orders')
@@ -283,7 +292,7 @@ describe('PUT /api/orders/:orderId', () => {
   // 契約規定同一個 code 在不同情境可以有不同的 message，這裡正好用上——
   // 呼叫端靠 code 分支，靠 message 知道是哪一種找不到。
   it('醫囑不存在時回 404 與 NOT_FOUND', async () => {
-    const res = await request(createApp(db, appOptions))
+    const res = await request(createApp())
       .put('/api/orders/9999')
       .send({ message: '超過150請施打10u' })
 
@@ -296,7 +305,7 @@ describe('PUT /api/orders/:orderId', () => {
   })
 
   it('醫囑內容為空字串時回 400 與 VALIDATION_FAILED', async () => {
-    const app = createApp(db, appOptions)
+    const app = createApp()
 
     const created = await request(app)
       .post('/api/patients/1/orders')

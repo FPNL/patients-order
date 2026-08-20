@@ -1,6 +1,5 @@
 import express, { type Express } from 'express'
 import helmet from 'helmet'
-import type { Kysely } from 'kysely'
 import { ApiError, errorHandler } from './api/api'
 import {
   createOrderForPatientHandler,
@@ -8,30 +7,31 @@ import {
   replaceOrderHandler,
 } from './api/order'
 import { listPatientsHandler } from './api/patient'
-import type { Database } from './db/schema'
+import * as config from './config'
+import * as database from './db/database'
 
 /**
  * 回傳一個尚未 listen 的 Express app，讓 supertest 可以直接掛上去，
  * 測試不必真的開 port。
  *
+ * 呼叫前 config 與 database 的 Default 都必須已經備妥。handler 仍然收
+ * Kysely 當參數，方便測試注入；createApp 只是把 Default 交給它們。
+ *
  * 路徑集中在這裡，與 docs/openapi.yaml 的端點一一對應；handler 本身住在
  * api/ 底下，以契約的 operationId 加上 Handler 後綴命名。
  */
-export interface AppOptions {
-  /** 單一 request body 的大小上限，單位是位元組。超過的請求回 413。 */
-  maxRequestBody: number
-}
-
-export function createApp(db: Kysely<Database>, options: AppOptions): Express {
+export function createApp(): Express {
   const app = express()
 
   // 掛在最前面，讓每個回應都帶到——包含錯誤回應。
   app.use(helmet())
-  app.use(express.json({ limit: options.maxRequestBody }))
+  app.use(express.json({ limit: config.Default.max_request_body }))
 
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok' })
   })
+
+  const db = database.Default
 
   app.get('/api/patients', listPatientsHandler(db))
   app.get('/api/patients/:patientId/orders', listOrdersOfPatientHandler(db))

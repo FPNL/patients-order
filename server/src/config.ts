@@ -102,8 +102,34 @@ export function parseConfig(source: string, path: string): Config {
   return parsed.data
 }
 
-/** 從命令列取得 --conf 指定的路徑，讀檔後解析。 */
-export function loadConfig(argv: string[]): Config {
+/**
+ * 目前生效的設定。`readConfig()` 之前是 undefined——啟動流程必須先呼叫它，
+ * 其餘地方才可以直接讀 `config.Default.port` 這樣的值，不必層層傳遞。
+ *
+ * ESM 的 export binding 對匯入方是唯讀的，所以測試要換掉它得經由
+ * `useConfig()`，不能直接指派。
+ */
+export let Default: Config
+
+/** 讀取指定路徑的設定檔並設為 {@link Default}。 */
+export function readConfig(filePath: string): void {
+  let source: string
+  try {
+    source = readFileSync(filePath, 'utf8')
+  } catch (err) {
+    throw new ConfigError(`cannot read ${filePath}: ${(err as Error).message}`)
+  }
+
+  Default = parseConfig(source, filePath)
+}
+
+/** 讓測試直接注入一份設定，不必真的準備檔案。 */
+export function useConfig(config: Config): void {
+  Default = config
+}
+
+/** 從命令列取出 --conf 指定的路徑。 */
+export function configPathFromArgv(argv: string[]): string {
   const { values } = parseArgs({
     args: argv,
     options: { conf: { type: 'string' } },
@@ -114,12 +140,5 @@ export function loadConfig(argv: string[]): Config {
     throw new ConfigError('missing required option --conf <path to config file>')
   }
 
-  let source: string
-  try {
-    source = readFileSync(values.conf, 'utf8')
-  } catch (err) {
-    throw new ConfigError(`cannot read ${values.conf}: ${(err as Error).message}`)
-  }
-
-  return parseConfig(source, values.conf)
+  return values.conf
 }
