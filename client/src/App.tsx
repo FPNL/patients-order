@@ -7,6 +7,7 @@ import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import ListItemButton from '@mui/material/ListItemButton'
 import ListItemText from '@mui/material/ListItemText'
+import Button from '@mui/material/Button'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
@@ -42,6 +43,20 @@ function OrderDialog({ patient, onClose }: { patient: Patient; onClose: () => vo
     }
   }, [patient.id])
 
+  // 契約承諾 POST 會回傳建立好的醫囑，那份資料就是權威的——接到清單尾端
+  // 即可（契約也承諾新增的排在最後），不必再打一次 GET。
+  const save = async (message: string) => {
+    const res = await fetch(`/api/patients/${patient.id}/orders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message }),
+    })
+
+    const created: Order = await res.json()
+    setOrders((current) => [...current, created])
+    setDraft(null)
+  }
+
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>
@@ -69,14 +84,21 @@ function OrderDialog({ patient, onClose }: { patient: Patient; onClose: () => vo
         )}
 
         {draft !== null && (
-          <TextField
-            label="醫囑內容"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            fullWidth
-            multiline
-            autoFocus
-          />
+          <Stack spacing={1}>
+            <TextField
+              label="醫囑內容"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              fullWidth
+              multiline
+              autoFocus
+            />
+            <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
+              <Button variant="contained" onClick={() => void save(draft)}>
+                儲存
+              </Button>
+            </Stack>
+          </Stack>
         )}
       </DialogContent>
     </Dialog>

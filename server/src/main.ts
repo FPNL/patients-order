@@ -15,11 +15,15 @@ function readConfig(): Config {
   }
 }
 
+// FIXME: 把 readCnofig 改到 config.ts 並且新增參數是 filePath string
+//  readConfig 不會回傳 Config，而是在 config.ts 新增一個全域變數 Default，讓其他地放可以直接取用
+//  config.ts 中的 config.Default.port, config.Default.max_request_body
 const config = readConfig()
 
 const db = createDatabase(config.database.url)
 await migrateToLatest(db)
 
+// FIXME: 因為 config 有 Default export variable 所以移除 AppOptions
 const server = createApp(db, { maxRequestBody: config.max_request_body }).listen(
   config.port,
   () => {
