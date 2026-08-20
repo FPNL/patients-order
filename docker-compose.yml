@@ -10,7 +10,10 @@ services:
     ports:
       - '5432:5432'
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      # postgres:18 起，資料放在 /var/lib/postgresql 底下以版本命名的子目錄，
+      # 掛在舊的 /var/lib/postgresql/data 會讓容器啟動失敗。
+      # 見 https://github.com/docker-library/postgres/pull/1259
+      - pgdata:/var/lib/postgresql
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U app -d interview']
       interval: 5s
