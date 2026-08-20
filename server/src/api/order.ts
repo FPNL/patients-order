@@ -92,7 +92,7 @@ export function createOrderForPatientHandler(db: Kysely<Database>): RequestHandl
 // 是兩份各自獨立的契約，其中一支日後放寬或收緊時不該連帶影響另一支。
 const ReqReplaceOrder = z
   .object({
-    message: z.string().min(1).max(4000),
+    message: z.string().trim().min(1).max(4000),
   })
   .strict()
 
