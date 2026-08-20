@@ -6,6 +6,19 @@ import { createDatabase } from './db/database'
 import { migrateToLatest } from './db/migrator'
 import {parseArgs} from "node:util";
 
+/**
+ * parseArgs 對不認得的選項、缺值的選項等等丟的是帶 ERR_PARSE_ARGS_ 前綴
+ * code 的 TypeError。那些跟 ConfigError 一樣是「啟動設定不對」，不是程式
+ * 出錯，所以要用同一種方式呈現。
+ */
+function isCliUsageError(err: unknown): err is Error {
+  return (
+    err instanceof Error &&
+    typeof (err as { code?: unknown }).code === 'string' &&
+    (err as { code: string }).code.startsWith('ERR_PARSE_ARGS_')
+  )
+}
+
 try {
   const { values } = parseArgs({
     args: process.argv.slice(2),
@@ -19,7 +32,9 @@ try {
 
   readConfig(values.conf)
 } catch (err) {
-  if (err instanceof ConfigError) {
+  // 啟動設定不對就印一行說明並結束，不要吐堆疊追蹤——看的人是啟動服務的
+  // 人，不是要來除錯的人。
+  if (err instanceof ConfigError || isCliUsageError(err)) {
     console.error(err.message)
     process.exit(1)
   }
@@ -27,6 +42,7 @@ try {
 }
 
 createDatabase()
+
 await migrateToLatest(database.Default)
 
 const server = createApp().listen(config.Default.port, () => {
