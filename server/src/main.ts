@@ -1,12 +1,23 @@
 import { createApp } from './app'
 import * as config from './config'
-import { ConfigError, configPathFromArgv, readConfig } from './config'
+import { ConfigError, readConfig } from './config'
 import * as database from './db/database'
 import { createDatabase } from './db/database'
 import { migrateToLatest } from './db/migrator'
+import {parseArgs} from "node:util";
 
 try {
-  readConfig(configPathFromArgv(process.argv.slice(2)))
+  const { values } = parseArgs({
+    args: process.argv.slice(2),
+    options: { conf: { type: 'string' } },
+    strict: true,
+  })
+
+  if (!values.conf) {
+    throw new ConfigError('missing required option --conf <path to config file>')
+  }
+
+  readConfig(values.conf)
 } catch (err) {
   if (err instanceof ConfigError) {
     console.error(err.message)
@@ -15,7 +26,7 @@ try {
   throw err
 }
 
-createDatabase(config.Default.database.url)
+createDatabase()
 await migrateToLatest(database.Default)
 
 const server = createApp().listen(config.Default.port, () => {

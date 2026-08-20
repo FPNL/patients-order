@@ -127,18 +127,3 @@ export function readConfig(filePath: string): void {
 export function useConfig(config: Config): void {
   Default = config
 }
-
-/** 從命令列取出 --conf 指定的路徑。 */
-export function configPathFromArgv(argv: string[]): string {
-  const { values } = parseArgs({
-    args: argv,
-    options: { conf: { type: 'string' } },
-    strict: true,
-  })
-
-  if (!values.conf) {
-    throw new ConfigError('missing required option --conf <path to config file>')
-  }
-
-  return values.conf
-}

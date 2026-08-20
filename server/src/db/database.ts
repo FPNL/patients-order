@@ -1,6 +1,7 @@
 import { Kysely, PostgresDialect } from 'kysely'
 import pg from 'pg'
 import type { Database } from './schema'
+import * as config from "../config";
 
 /**
  * 目前生效的資料庫連線。`createDatabase()` 之前是 undefined——啟動流程
@@ -12,10 +13,10 @@ import type { Database } from './schema'
 export let Default: Kysely<Database>
 
 /** 連上正式與開發環境用的 PostgreSQL，並設為 {@link Default}。 */
-export function createDatabase(connectionString: string): void {
+export function createDatabase(): void {
   Default = new Kysely<Database>({
     dialect: new PostgresDialect({
-      pool: new pg.Pool({ connectionString }),
+      pool: new pg.Pool({ connectionString: config.Default.database.url }),
     }),
   })
 }
