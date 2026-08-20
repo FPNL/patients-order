@@ -26,15 +26,31 @@ export default function OrderEditor({ message, error, onChange, onSave }: Props)
       }}
     >
       <Stack spacing={1.5}>
+        {/* filled 變體的浮動標籤直接落在輸入框自己的底色上，不像 outlined
+            會在邊框缺口露出面板的底色。 */}
         <TextField
           label="醫囑內容"
           value={message}
           onChange={(event) => onChange(event.target.value)}
+          variant="filled"
           fullWidth
           multiline
           minRows={3}
           autoFocus
-          sx={{ bgcolor: 'background.paper', borderRadius: 3 }}
+          slotProps={{
+            // 底線是一條直線，畫在圓角輸入框上會超出圓角。改用整圈邊框。
+            input: { disableUnderline: true },
+          }}
+          sx={{
+            '& .MuiFilledInput-root': {
+              borderRadius: 3,
+              border: 1,
+              borderColor: 'divider',
+              bgcolor: 'background.paper',
+              '&:hover, &.Mui-focused': { bgcolor: 'background.paper' },
+              '&.Mui-focused': { borderColor: 'primary.main' },
+            },
+          }}
         />
 
         {/* role="alert" 讓螢幕閱讀器在錯誤出現時主動唸出來。 */}
