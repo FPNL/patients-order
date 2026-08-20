@@ -31,12 +31,10 @@ export function createApp(): Express {
     res.json({ status: 'ok' })
   })
 
-  const db = database.Default
-
-  app.get('/api/patients', listPatientsHandler(db))
-  app.get('/api/patients/:patientId/orders', listOrdersOfPatientHandler(db))
-  app.post('/api/patients/:patientId/orders', createOrderForPatientHandler(db))
-  app.put('/api/orders/:orderId', replaceOrderHandler(db))
+  app.get('/api/patients', listPatientsHandler(database.Default))
+  app.get('/api/patients/:patientId/orders', listOrdersOfPatientHandler(database.Default))
+  app.post('/api/patients/:patientId/orders', createOrderForPatientHandler(database.Default))
+  app.put('/api/orders/:orderId', replaceOrderHandler(database.Default))
 
   // 放在所有路由之後才不會攔掉正常請求，放在 errorHandler 之前才丟得進去。
   // 沒有這條的話 Express 會吐預設的 HTML 錯誤頁，契約承諾的「所有錯誤回應
