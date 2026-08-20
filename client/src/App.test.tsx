@@ -180,4 +180,61 @@ describe('醫囑 Dialog', () => {
     // 存完就收起來，不留著一個裝著舊內容的輸入框。
     expect(within(dialog).queryByRole('textbox', { name: '醫囑內容' })).not.toBeInTheDocument()
   })
+
+  // 計畫：
+  // 1. 清單裡的每筆醫囑從 ListItem 改成 ListItemButton，點擊把 draft 設成
+  //    「正在編輯這筆、內容是它現在的 message」。
+  // 2. draft 因此要從 string | null 變成
+  //    { id: number | null; message: string } | null——id 是 null 代表新增，
+  //    有值代表編輯哪一筆。兩種情況共用同一個輸入欄位與儲存按鈕。
+  // 3. 儲存時依 id 決定打 POST 還是 PUT /api/orders/:orderId。
+  // 4. PUT 成功後用回傳的醫囑替換清單裡的那一筆，位置不變——契約明寫改寫
+  //    內容不會改變它在清單中的位置。
+  //
+  // 斷言改寫後的清單「順序不變」而不只是內容對：把改過的那筆搬到尾端是
+  // 很容易犯的錯（新增的邏輯就是接到尾端），順序不變才是契約承諾的。
+  it('點既有醫囑可編輯，儲存後打 PUT 且位置不變', async () => {
+    let putBody: unknown
+    let putUrl: string | undefined
+
+    server.use(
+      http.get('/api/patients', () => HttpResponse.json(patients)),
+      http.get('/api/patients/:patientId/orders', () =>
+        HttpResponse.json([
+          { id: 7, patientId: 1, message: '第一筆' },
+          { id: 9, patientId: 1, message: '第二筆' },
+        ]),
+      ),
+      http.put('/api/orders/:orderId', async ({ request, params }) => {
+        putUrl = String(params.orderId)
+        putBody = await request.json()
+        return HttpResponse.json({ id: 7, patientId: 1, message: '改過的第一筆' })
+      }),
+    )
+
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: '小民' }))
+
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.click(await within(dialog).findByRole('button', { name: '第一筆' }))
+
+    // 編輯時輸入欄位要帶著原本的內容，不是空白——不然使用者得整段重打。
+    const input = await within(dialog).findByRole('textbox', { name: '醫囑內容' })
+    expect(input).toHaveValue('第一筆')
+
+    await userEvent.clear(input)
+    await userEvent.type(input, '改過的第一筆')
+    await userEvent.click(within(dialog).getByRole('button', { name: '儲存' }))
+
+    await waitFor(() => expect(putBody).toEqual({ message: '改過的第一筆' }))
+    expect(putUrl).toBe('7')
+
+    // 限定在醫囑清單裡找，不然「新增醫囑」按鈕也會被算進來，斷言就跟
+    // 版面順序綁在一起了。
+    const list = within(dialog).getByRole('list')
+    expect(within(list).getAllByRole('button').map((item) => item.textContent)).toEqual([
+      '改過的第一筆',
+      '第二筆',
+    ])
+  })
 })
