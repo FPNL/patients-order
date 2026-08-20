@@ -24,5 +24,9 @@ export function createApp(db: Kysely<Database>): Express {
     res.json(patients)
   })
 
+  app.get('/api/patients/:patientId/orders', (_req, res) => {
+    res.json([])
+  })
+
   return app
 }
