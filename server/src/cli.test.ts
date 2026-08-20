@@ -1,20 +1,27 @@
 import { describe, expect, it } from 'vitest'
-import { parseCliArgs } from './cli'
+import { CliError, parseCliArgs } from './cli'
 
-// 打算怎麼讓它變綠：新增 src/cli.ts，export 一個
-// `parseCliArgs(argv: string[]): { conf: string }`。實作是呼叫 node:util 的
-// parseArgs（`args: argv`、`options: { conf: { type: 'string' } }`、
-// `strict: true`），把 `values.conf` 包成 `{ conf }` 回傳。
-//
-// 這一步只服務這顆測試：不處理缺 --conf、不處理不認得的選項、不定義
-// CliError——那些是後面各自的循環。所以 `values.conf` 為 undefined 時要怎麼
-// 辦，這一輪不寫，先用 non-null assertion 讓型別過。
-//
-// 模組還不存在，import 失敗就是這顆的紅燈。
 describe('parseCliArgs', () => {
   it('把 --conf 的值當成設定檔路徑回傳', () => {
     expect(parseCliArgs(['--conf', '/etc/app/config.json'])).toEqual({
       conf: '/etc/app/config.json',
     })
+  })
+
+  // 打算怎麼讓它變綠：在 cli.ts export 一個 `class CliError extends Error`，
+  // 然後把回傳處的 `values.conf!` 換成判斷——undefined 就丟
+  // `new CliError('missing required option --conf <path to config file>')`。
+  //
+  // 訊息是我們自己寫的字串，不是 library 產生的，所以直接寫死斷言；
+  // main.test.ts:38 已經在用它的前綴當黑箱斷言，兩邊要對得起來。
+  //
+  // 用獨立的 CliError 而不是借 config.ts 的 ConfigError：那個型別代表
+  // 「設定檔內容不合規格」，命令列用法錯誤不是同一件事。
+  //
+  // 這一輪不管不認得的選項——parseArgs 現在丟的還是 TypeError，那是下一顆。
+  it('沒給 --conf 就丟 CliError', () => {
+    expect(() => parseCliArgs([])).toThrow(
+      new CliError('missing required option --conf <path to config file>'),
+    )
   })
 })
