@@ -100,4 +100,33 @@ describe('醫囑 Dialog', () => {
     const dialog = await screen.findByRole('dialog')
     expect(await within(dialog).findByText('尚未有醫囑')).toBeInTheDocument()
   })
+
+  // 計畫：
+  // 1. DialogTitle 裡放一個 IconButton（MUI 的 AddIcon），用 sx 靠右對齊，
+  //    aria-label 設成「新增醫囑」——圖示按鈕沒有文字內容，沒有 aria-label
+  //    的話螢幕閱讀器與測試都找不到它。
+  // 2. OrderDialog 用 useState 記住「是否正在新增」，按鈕的 onClick 打開。
+  // 3. 打開時渲染一個 MUI TextField，label 設成「醫囑內容」。
+  //
+  // 這顆只到「按鈕在、按下去出現輸入欄位」為止。送出、呼叫 POST、清單更新
+  // 都留給下一顆——那些是不同的行為，混在一起這顆紅的時候會分不出是哪裡壞。
+  //
+  // 用 findByRole('textbox') 而不是找 TextField 的 class：斷言的是使用者
+  // 看得到、輔助技術認得的東西，MUI 換 class 名不該讓測試紅。
+  it('按下新增按鈕後出現醫囑輸入欄位', async () => {
+    server.use(
+      http.get('/api/patients', () => HttpResponse.json(patients)),
+      http.get('/api/patients/:patientId/orders', () => HttpResponse.json([])),
+    )
+
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: '小民' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).queryByRole('textbox')).not.toBeInTheDocument()
+
+    await userEvent.click(within(dialog).getByRole('button', { name: '新增醫囑' }))
+
+    expect(await within(dialog).findByRole('textbox', { name: '醫囑內容' })).toBeInTheDocument()
+  })
 })
