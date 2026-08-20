@@ -7,6 +7,8 @@
 ├── server/          Express + Kysely
 │   └── src/
 │       └── db/      dialect、migration、測試資料庫
+├── docs/
+│   └── openapi.yaml     API 契約（規格先行，實作跟著它走）
 └── docker-compose.yml   開發用 PostgreSQL（測試用不到）
 ```
 
