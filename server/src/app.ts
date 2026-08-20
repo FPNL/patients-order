@@ -1,7 +1,12 @@
 import express, { type Express, type NextFunction, type Request, type Response } from 'express'
 import type { Kysely } from 'kysely'
+import { z } from 'zod'
 import type { Database } from './db/schema'
 import { ApiError } from './errors'
+
+const patientIdParam = z.object({
+  patientId: z.coerce.number().int().positive(),
+})
 
 /**
  * 回傳一個尚未 listen 的 Express app，讓 supertest 可以直接掛上去，
@@ -26,10 +31,21 @@ export function createApp(db: Kysely<Database>): Express {
   })
 
   app.get('/api/patients/:patientId/orders', async (req, res) => {
+    // 路徑參數永遠是字串，所以要 coerce 之後才驗得了數值條件。
+    const params = patientIdParam.safeParse(req.params)
+    if (!params.success) {
+      throw new ApiError(
+        400,
+        'VALIDATION_FAILED',
+        'invalid path parameter',
+        z.flattenError(params.error).fieldErrors,
+      )
+    }
+
     const patient = await db
       .selectFrom('patients')
       .select('id')
-      .where('id', '=', Number(req.params.patientId))
+      .where('id', '=', params.data.patientId)
       .executeTakeFirst()
 
     if (!patient) {
