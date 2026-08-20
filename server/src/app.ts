@@ -12,5 +12,9 @@ export function createApp(): Express {
     res.json({ status: 'ok' })
   })
 
+  app.get('/api/patients', (_req, res) => {
+    res.json([])
+  })
+
   return app
 }
