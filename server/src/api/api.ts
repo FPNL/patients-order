@@ -61,7 +61,7 @@ export function errorHandler(
   err: unknown,
   _req: Request,
   res: Response,
-  next: NextFunction,
+  _next: NextFunction,
 ): void {
   // express.json() 解析失敗時丟的是帶 type: 'entity.parse.failed' 的
   // SyntaxError。用 type 而不是 instanceof SyntaxError 判別：SyntaxError
@@ -83,5 +83,17 @@ export function errorHandler(
     return
   }
 
-  next(err)
+  // 不認得的錯誤一律遮成通用訊息：這裡最可能是 DB／ORM 的錯誤，原始訊息
+  // 會帶著資料表名稱之類的內部細節。細節去紀錄檔，不進回應——契約在
+  // message 欄位上就是這樣承諾的。
+  //
+  // 只遮這個分支：所有刻意丟出的 ApiError（含未來可能的 5xx）在上面就已
+  // 經回傳了，message 原樣保留。
+  console.error('unexpected error', err)
+
+  res.status(500).json({
+    code: 'INTERNAL_ERROR',
+    message: 'internal server error',
+    data: {},
+  })
 }
