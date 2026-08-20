@@ -1,7 +1,17 @@
+import type { Generated } from 'kysely'
+
 /** 住民。固定資料，本 API 不提供新增、修改或刪除。 */
 export interface PatientTable {
   id: number
   name: string
+}
+
+/** 醫囑。可新增、可編輯，本 API 不提供刪除。 */
+export interface OrderTable {
+  /** insert 時不給，由資料庫產生。 */
+  id: Generated<number>
+  patient_id: number
+  message: string
 }
 
 /**
@@ -10,4 +20,5 @@ export interface PatientTable {
  */
 export interface Database {
   patients: PatientTable
+  orders: OrderTable
 }

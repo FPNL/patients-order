@@ -8,6 +8,10 @@ const patientIdParam = z.object({
   patientId: z.coerce.number().int().positive(),
 })
 
+const orderInput = z.object({
+  message: z.string().min(1).max(4000),
+})
+
 /**
  * 回傳一個尚未 listen 的 Express app，讓 supertest 可以直接掛上去，
  * 測試不必真的開 port。
@@ -53,6 +57,42 @@ export function createApp(db: Kysely<Database>): Express {
     }
 
     res.json([])
+  })
+
+  app.post('/api/patients/:patientId/orders', async (req, res) => {
+    const params = patientIdParam.safeParse(req.params)
+    if (!params.success) {
+      throw new ApiError(
+        400,
+        'VALIDATION_FAILED',
+        'invalid path parameter',
+        z.flattenError(params.error).fieldErrors,
+      )
+    }
+
+    const patient = await db
+      .selectFrom('patients')
+      .select('id')
+      .where('id', '=', params.data.patientId)
+      .executeTakeFirst()
+
+    if (!patient) {
+      throw new ApiError(404, 'NOT_FOUND', 'patient not found')
+    }
+
+    const body = orderInput.parse(req.body)
+
+    const order = await db
+      .insertInto('orders')
+      .values({ patient_id: params.data.patientId, message: body.message })
+      .returningAll()
+      .executeTakeFirstOrThrow()
+
+    res.status(201).json({
+      id: order.id,
+      patientId: order.patient_id,
+      message: order.message,
+    })
   })
 
   // Express 5 會把 async handler 回傳的 rejected promise 轉到這裡，
