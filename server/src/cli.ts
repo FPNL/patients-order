@@ -1,5 +1,8 @@
 import { parseArgs } from 'node:util'
 
+/** 命令列用法錯誤時丟出的錯誤，訊息會直接印給啟動者看。 */
+export class CliError extends Error {}
+
 /** 啟動時從命令列取得的參數。 */
 export interface CliArgs {
   /** 設定檔路徑，來自 `--conf`。 */
@@ -20,5 +23,9 @@ export function parseCliArgs(argv: string[]): CliArgs {
     strict: true,
   })
 
-  return { conf: values.conf! }
+  if (!values.conf) {
+    throw new CliError('missing required option --conf <path to config file>')
+  }
+
+  return { conf: values.conf }
 }
