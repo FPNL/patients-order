@@ -209,17 +209,22 @@ describe('醫囑的順序', () => {
   it('回傳多筆醫囑時依建立時間由舊到新', async () => {
     const app = createApp(db)
 
+    // 不能寫死 id：Postgres 的 sequence 不受 transaction rollback 影響，
+    // 前面幾顆測試消耗掉的 nextval 不會還回來。這正是契約寫「不承諾連續」
+    // 的實際原因。改成拿新增時後端回的 id 來斷言。
+    const created: number[] = []
     for (const message of ['第一筆', '第二筆', '第三筆']) {
-      await request(app).post('/api/patients/1/orders').send({ message })
+      const res = await request(app).post('/api/patients/1/orders').send({ message })
+      created.push(res.body.id)
     }
 
     const res = await request(app).get('/api/patients/1/orders')
 
     expect(res.status).toBe(200)
     expect(res.body).toEqual([
-      { id: 1, patientId: 1, message: '第一筆' },
-      { id: 2, patientId: 1, message: '第二筆' },
-      { id: 3, patientId: 1, message: '第三筆' },
+      { id: created[0], patientId: 1, message: '第一筆' },
+      { id: created[1], patientId: 1, message: '第二筆' },
+      { id: created[2], patientId: 1, message: '第三筆' },
     ])
   })
 })

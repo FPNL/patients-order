@@ -84,7 +84,24 @@ export function createApp(db: Kysely<Database>): Express {
       throw new ApiError(404, 'NOT_FOUND', 'patient not found')
     }
 
-    res.json([])
+    const orders = await db
+      .selectFrom('orders')
+      .select(['id', 'patient_id', 'message'])
+      .where('patient_id', '=', params.data.patientId)
+      // 同一個 transaction 裡 now() 回的是 transaction 開始時間，連續新增
+      // 的幾筆會拿到完全相同的 created_at，只靠它排序不穩定。id 是遞增的
+      // serial，拿來當決勝依據。
+      .orderBy('created_at')
+      .orderBy('id')
+      .execute()
+
+    res.json(
+      orders.map((order) => ({
+        id: order.id,
+        patientId: order.patient_id,
+        message: order.message,
+      })),
+    )
   })
 
   app.post('/api/patients/:patientId/orders', async (req, res) => {

@@ -1,4 +1,4 @@
-import type { Generated } from 'kysely'
+import type { ColumnType, Generated } from 'kysely'
 
 /** 住民。固定資料，本 API 不提供新增、修改或刪除。 */
 export interface PatientTable {
@@ -12,6 +12,8 @@ export interface OrderTable {
   id: Generated<number>
   patient_id: number
   message: string
+  /** 排序依據，不會出現在任何 API 回應裡。insert 時不給，由資料庫填 now()。 */
+  created_at: ColumnType<Date, never, never>
 }
 
 /**
