@@ -1,12 +1,10 @@
-import { Router } from 'express'
+import type { RequestHandler } from 'express'
 import type { Kysely } from 'kysely'
 import type { Database } from '../db/schema'
 
-/** 掛在 /api 底下的住民端點。 */
-export function patientRouter(db: Kysely<Database>): Router {
-  const router = Router()
-
-  router.get('/patients', async (_req, res) => {
+/** 契約的 listPatients：回傳全部住民，依 id 由小到大。 */
+export function listPatients(db: Kysely<Database>): RequestHandler {
+  return async (_req, res) => {
     const patients = await db
       .selectFrom('patients')
       .select(['id', 'name'])
@@ -14,7 +12,5 @@ export function patientRouter(db: Kysely<Database>): Router {
       .execute()
 
     res.json(patients)
-  })
-
-  return router
+  }
 }

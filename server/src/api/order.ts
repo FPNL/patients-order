@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import type { RequestHandler } from 'express'
 import type { Kysely } from 'kysely'
 import { z } from 'zod'
 import type { Database } from '../db/schema'
@@ -29,51 +29,49 @@ const toOrder = (row: OrderRow) => ({
   message: row.message,
 })
 
-/** 掛在 /api 底下的醫囑端點。 */
-export function orderRouter(db: Kysely<Database>): Router {
-  const router = Router()
-
-  const parsePatientId = (params: unknown): number => {
-    const parsed = patientIdParam.safeParse(params)
-    if (!parsed.success) {
-      throw new ApiError(
-        400,
-        'VALIDATION_FAILED',
-        'invalid path parameter',
-        toFieldErrors(parsed.error),
-      )
-    }
-    return parsed.data.patientId
+function parsePathParams<T extends z.ZodType>(schema: T, params: unknown): z.infer<T> {
+  const parsed = schema.safeParse(params)
+  if (!parsed.success) {
+    throw new ApiError(
+      400,
+      'VALIDATION_FAILED',
+      'invalid path parameter',
+      toFieldErrors(parsed.error),
+    )
   }
+  return parsed.data
+}
 
-  const parseMessage = (body: unknown): string => {
-    const parsed = orderInput.safeParse(body)
-    if (!parsed.success) {
-      throw new ApiError(
-        400,
-        'VALIDATION_FAILED',
-        'invalid request body',
-        toFieldErrors(parsed.error),
-      )
-    }
-    return parsed.data.message
+function parseMessage(body: unknown): string {
+  const parsed = orderInput.safeParse(body)
+  if (!parsed.success) {
+    throw new ApiError(
+      400,
+      'VALIDATION_FAILED',
+      'invalid request body',
+      toFieldErrors(parsed.error),
+    )
   }
+  return parsed.data.message
+}
 
-  const requirePatient = async (patientId: number): Promise<void> => {
-    const patient = await db
-      .selectFrom('patients')
-      .select('id')
-      .where('id', '=', patientId)
-      .executeTakeFirst()
+async function requirePatient(db: Kysely<Database>, patientId: number): Promise<void> {
+  const patient = await db
+    .selectFrom('patients')
+    .select('id')
+    .where('id', '=', patientId)
+    .executeTakeFirst()
 
-    if (!patient) {
-      throw new ApiError(404, 'NOT_FOUND', 'patient not found')
-    }
+  if (!patient) {
+    throw new ApiError(404, 'NOT_FOUND', 'patient not found')
   }
+}
 
-  router.get('/patients/:patientId/orders', async (req, res) => {
-    const patientId = parsePatientId(req.params)
-    await requirePatient(patientId)
+/** 契約的 listOrdersOfPatient：回傳該住民的醫囑，依建立時間由舊到新。 */
+export function listOrdersOfPatient(db: Kysely<Database>): RequestHandler {
+  return async (req, res) => {
+    const { patientId } = parsePathParams(patientIdParam, req.params)
+    await requirePatient(db, patientId)
 
     const orders = await db
       .selectFrom('orders')
@@ -86,11 +84,14 @@ export function orderRouter(db: Kysely<Database>): Router {
       .execute()
 
     res.json(orders.map(toOrder))
-  })
+  }
+}
 
-  router.post('/patients/:patientId/orders', async (req, res) => {
-    const patientId = parsePatientId(req.params)
-    await requirePatient(patientId)
+/** 契約的 createOrderForPatient：為該住民新增一筆醫囑。 */
+export function createOrderForPatient(db: Kysely<Database>): RequestHandler {
+  return async (req, res) => {
+    const { patientId } = parsePathParams(patientIdParam, req.params)
+    await requirePatient(db, patientId)
     const message = parseMessage(req.body)
 
     const order = await db
@@ -100,25 +101,19 @@ export function orderRouter(db: Kysely<Database>): Router {
       .executeTakeFirstOrThrow()
 
     res.status(201).json(toOrder(order))
-  })
+  }
+}
 
-  router.put('/orders/:orderId', async (req, res) => {
-    const parsed = orderIdParam.safeParse(req.params)
-    if (!parsed.success) {
-      throw new ApiError(
-        400,
-        'VALIDATION_FAILED',
-        'invalid path parameter',
-        toFieldErrors(parsed.error),
-      )
-    }
-
+/** 契約的 replaceOrder：以請求內容取代該醫囑的內容。 */
+export function replaceOrder(db: Kysely<Database>): RequestHandler {
+  return async (req, res) => {
+    const { orderId } = parsePathParams(orderIdParam, req.params)
     const message = parseMessage(req.body)
 
     const order = await db
       .updateTable('orders')
       .set({ message })
-      .where('id', '=', parsed.data.orderId)
+      .where('id', '=', orderId)
       .returningAll()
       .executeTakeFirst()
 
@@ -127,7 +122,5 @@ export function orderRouter(db: Kysely<Database>): Router {
     }
 
     res.json(toOrder(order))
-  })
-
-  return router
+  }
 }
