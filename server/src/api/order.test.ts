@@ -351,4 +351,35 @@ describe('PUT /api/orders/:orderId', () => {
       },
     })
   })
+
+  // 計畫：把 ReqReplaceOrder 的 message 也改成
+  // z.string().trim().min(1).max(4000)，與 ReqCreateOrderForPatient 那條
+  // 同樣的寫法。兩支端點的 body 是兩份各自獨立的契約，所以是各自改各自
+  // 的 schema，不把它們合併成同一個常數。
+  //
+  // 現在 ReqReplaceOrder 的 min(1) 看到的是未經處理的 '   '，長度 3、通過
+  // 驗證，會把一筆有內容的醫囑覆寫成只有空白。
+  //
+  // 訊息與新增那兩顆同一句，都是 zod 4.4.3 對 trim 後空字串產生的
+  // 'Too small: expected string to have >=1 characters'。
+  it('醫囑內容只有空白時回 400 與 VALIDATION_FAILED', async () => {
+    const app = createApp()
+
+    const created = await request(app)
+      .post('/api/patients/1/orders')
+      .send({ message: '超過120請施打8u' })
+
+    const res = await request(app)
+      .put(`/api/orders/${created.body.id}`)
+      .send({ message: '   ' })
+
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({
+      code: 'VALIDATION_FAILED',
+      message: 'invalid request body',
+      data: {
+        message: ['Too small: expected string to have >=1 characters'],
+      },
+    })
+  })
 })
