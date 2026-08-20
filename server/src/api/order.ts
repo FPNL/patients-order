@@ -1,0 +1,133 @@
+import { Router } from 'express'
+import type { Kysely } from 'kysely'
+import { z } from 'zod'
+import type { Database } from '../db/schema'
+import { ApiError, toFieldErrors } from './api'
+
+// 路徑參數永遠是字串，所以要 coerce 之後才驗得了數值條件。
+const patientIdParam = z.object({
+  patientId: z.coerce.number().int().positive(),
+})
+
+const orderIdParam = z.object({
+  orderId: z.coerce.number().int().positive(),
+})
+
+// strict()：未定義的欄位不會被剝掉，整個請求以 VALIDATION_FAILED 拒絕。
+// 呼叫端拼錯欄位名時應該馬上知道，而不是以為存成功了。
+const orderInput = z
+  .object({
+    message: z.string().min(1).max(4000),
+  })
+  .strict()
+
+type OrderRow = { id: number; patient_id: number; message: string }
+
+const toOrder = (row: OrderRow) => ({
+  id: row.id,
+  patientId: row.patient_id,
+  message: row.message,
+})
+
+/** 掛在 /api 底下的醫囑端點。 */
+export function orderRouter(db: Kysely<Database>): Router {
+  const router = Router()
+
+  const parsePatientId = (params: unknown): number => {
+    const parsed = patientIdParam.safeParse(params)
+    if (!parsed.success) {
+      throw new ApiError(
+        400,
+        'VALIDATION_FAILED',
+        'invalid path parameter',
+        toFieldErrors(parsed.error),
+      )
+    }
+    return parsed.data.patientId
+  }
+
+  const parseMessage = (body: unknown): string => {
+    const parsed = orderInput.safeParse(body)
+    if (!parsed.success) {
+      throw new ApiError(
+        400,
+        'VALIDATION_FAILED',
+        'invalid request body',
+        toFieldErrors(parsed.error),
+      )
+    }
+    return parsed.data.message
+  }
+
+  const requirePatient = async (patientId: number): Promise<void> => {
+    const patient = await db
+      .selectFrom('patients')
+      .select('id')
+      .where('id', '=', patientId)
+      .executeTakeFirst()
+
+    if (!patient) {
+      throw new ApiError(404, 'NOT_FOUND', 'patient not found')
+    }
+  }
+
+  router.get('/patients/:patientId/orders', async (req, res) => {
+    const patientId = parsePatientId(req.params)
+    await requirePatient(patientId)
+
+    const orders = await db
+      .selectFrom('orders')
+      .select(['id', 'patient_id', 'message'])
+      .where('patient_id', '=', patientId)
+      // created_at 相同時（例如同一毫秒內連續新增）需要一個穩定的決勝
+      // 依據，id 是遞增的 serial。
+      .orderBy('created_at')
+      .orderBy('id')
+      .execute()
+
+    res.json(orders.map(toOrder))
+  })
+
+  router.post('/patients/:patientId/orders', async (req, res) => {
+    const patientId = parsePatientId(req.params)
+    await requirePatient(patientId)
+    const message = parseMessage(req.body)
+
+    const order = await db
+      .insertInto('orders')
+      .values({ patient_id: patientId, message })
+      .returningAll()
+      .executeTakeFirstOrThrow()
+
+    res.status(201).json(toOrder(order))
+  })
+
+  router.put('/orders/:orderId', async (req, res) => {
+    const parsed = orderIdParam.safeParse(req.params)
+    if (!parsed.success) {
+      throw new ApiError(
+        400,
+        'VALIDATION_FAILED',
+        'invalid path parameter',
+        toFieldErrors(parsed.error),
+      )
+    }
+
+    const message = parseMessage(req.body)
+
+    const order = await db
+      .updateTable('orders')
+      .set({ message })
+      .where('id', '=', parsed.data.orderId)
+      .returningAll()
+      .executeTakeFirst()
+
+    if (!order) {
+      throw new ApiError(404, 'NOT_FOUND', 'order not found')
+    }
+
+    res.json(toOrder(order))
+  })
+
+  return router
+}
