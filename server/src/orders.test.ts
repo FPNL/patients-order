@@ -261,4 +261,26 @@ describe('PUT /api/orders/:orderId', () => {
       message: '超過150請施打10u',
     })
   })
+
+  // 計畫：把 executeTakeFirstOrThrow 換成 executeTakeFirst，回 undefined
+  // 就丟 ApiError(404, 'NOT_FOUND', 'order not found')。
+  //
+  // 現在 executeTakeFirstOrThrow 丟出的是 Kysely 的 NoResultError，
+  // 會被 error middleware 的 next(err) 交還 Express，回的是 500。
+  //
+  // message 是 'order not found' 而不是住民那條的 'patient not found'：
+  // 契約規定同一個 code 在不同情境可以有不同的 message，這裡正好用上——
+  // 呼叫端靠 code 分支，靠 message 知道是哪一種找不到。
+  it('醫囑不存在時回 404 與 NOT_FOUND', async () => {
+    const res = await request(createApp(db))
+      .put('/api/orders/9999')
+      .send({ message: '超過150請施打10u' })
+
+    expect(res.status).toBe(404)
+    expect(res.body).toEqual({
+      code: 'NOT_FOUND',
+      message: 'order not found',
+      data: {},
+    })
+  })
 })
