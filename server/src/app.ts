@@ -8,9 +8,37 @@ const patientIdParam = z.object({
   patientId: z.coerce.number().int().positive(),
 })
 
-const orderInput = z.object({
-  message: z.string().min(1).max(4000),
-})
+const orderInput = z
+  .object({
+    message: z.string().min(1).max(4000),
+  })
+  .strict()
+
+/**
+ * 把 zod 的 issue 攤成契約規定的 data 形狀：`{ 欄位名: [訊息, ...] }`。
+ *
+ * 不能直接用 z.flattenError()：未知欄位產生的 unrecognized_keys issue
+ * 的 path 是空陣列，會被歸到 formErrors，fieldErrors 裡拿不到，data 會
+ * 變成空物件、資訊整個掉。這裡改成用 issue.keys 裡的每個欄位名當鍵。
+ */
+function toFieldErrors(error: z.ZodError): Record<string, string[]> {
+  const fieldErrors: Record<string, string[]> = {}
+
+  const add = (field: string, message: string) => {
+    ;(fieldErrors[field] ??= []).push(message)
+  }
+
+  for (const issue of error.issues) {
+    if (issue.code === 'unrecognized_keys') {
+      for (const key of issue.keys) add(key, issue.message)
+      continue
+    }
+
+    add(String(issue.path[0]), issue.message)
+  }
+
+  return fieldErrors
+}
 
 /**
  * 回傳一個尚未 listen 的 Express app，讓 supertest 可以直接掛上去，
@@ -42,7 +70,7 @@ export function createApp(db: Kysely<Database>): Express {
         400,
         'VALIDATION_FAILED',
         'invalid path parameter',
-        z.flattenError(params.error).fieldErrors,
+        toFieldErrors(params.error),
       )
     }
 
@@ -66,7 +94,7 @@ export function createApp(db: Kysely<Database>): Express {
         400,
         'VALIDATION_FAILED',
         'invalid path parameter',
-        z.flattenError(params.error).fieldErrors,
+        toFieldErrors(params.error),
       )
     }
 
@@ -86,7 +114,7 @@ export function createApp(db: Kysely<Database>): Express {
         400,
         'VALIDATION_FAILED',
         'invalid request body',
-        z.flattenError(body.error).fieldErrors,
+        toFieldErrors(body.error),
       )
     }
 
