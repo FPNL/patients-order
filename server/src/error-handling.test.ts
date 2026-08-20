@@ -1,7 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import request from 'supertest'
-import type { Kysely } from 'kysely'
+import { PGlite } from '@electric-sql/pglite'
+import { Kysely } from 'kysely'
 import { createApp } from './app'
+import { PGliteDialect } from './db/pglite-dialect'
 import { createTestDatabase } from './db/test-database'
 import type { Database } from './db/schema'
 
@@ -61,5 +63,43 @@ describe('body 不是合法的 JSON', () => {
       message: 'invalid request body',
       data: {},
     })
+  })
+})
+
+describe('未預期的錯誤', () => {
+  // 計畫：errorHandler 的最後不再 next(err)，改成一律回
+  // { code: 'INTERNAL_ERROR', message: 'internal server error', data: {} }
+  // 並帶 500。
+  //
+  // 製造錯誤的方式是給 app 一個沒有套用 migration 的資料庫，然後打正常的
+  // 端點——Postgres 會回 'relation "patients" does not exist'。用真的 DB
+  // 錯誤而不是自己 throw new Error('x')，因為真正要防的就是 DB／ORM 的
+  // 內部訊息外洩，斷言裡明確要求那些字眼不出現在回應裡。
+  //
+  // 不能像原本那樣在測試裡後掛一條會炸的路由：createApp 已經先掛好
+  // ROUTE_NOT_FOUND 的 fallback，後加的路由排在它後面永遠輪不到。
+  //
+  // 契約在 message 欄位上明寫：code 為 INTERNAL_ERROR 時一律是固定的通用
+  // 字串，不會包含任何後端內部細節。
+  it('回 500 與 INTERNAL_ERROR，且不洩漏內部細節', async () => {
+    const emptyDb = new Kysely<Database>({
+      dialect: new PGliteDialect(new PGlite()),
+    })
+
+    const res = await request(createApp(emptyDb)).get('/api/patients')
+
+    expect(res.status).toBe(500)
+    expect(res.headers['content-type']).toMatch(/^application\/json/)
+    expect(res.body).toEqual({
+      code: 'INTERNAL_ERROR',
+      message: 'internal server error',
+      data: {},
+    })
+
+    const serialised = JSON.stringify(res.body)
+    expect(serialised).not.toContain('patients')
+    expect(serialised).not.toContain('does not exist')
+
+    await emptyDb.destroy()
   })
 })
