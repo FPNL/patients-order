@@ -103,3 +103,36 @@ describe('未預期的錯誤', () => {
     await emptyDb.destroy()
   })
 })
+
+describe('body 超過大小上限', () => {
+  // 計畫：
+  // 1. config 新增 max_request_body，預設 "10MB"，用 bytes 解析成位元組
+  //    數。bytes 是 express.json({ limit }) 內部本來就在用的解析器，
+  //    KB/MB/GB 一律 1024 進位。
+  // 2. createApp 改成收第二個參數，把上限傳給 express.json({ limit })。
+  //    這顆測試配一個很小的上限，才不用真的送 10MB。
+  // 3. errorHandler 多認一種：express.json() 超過上限時丟的錯誤帶
+  //    type: 'entity.too.large'，轉成
+  //    ApiError(413, 'PAYLOAD_TOO_LARGE', 'request body too large')。
+  //
+  // 現在這個錯誤不被 errorHandler 認得，會被遮成 500 INTERNAL_ERROR——
+  // 呼叫端會以為伺服器壞了，其實是自己送太大。
+  //
+  // data 是空物件：後端根本沒讀 body 的內容，說不出是哪個欄位有問題。
+  it('回 413 與 PAYLOAD_TOO_LARGE', async () => {
+    const app = createApp(db, { maxRequestBody: 1024 })
+
+    const res = await request(app)
+      .post('/api/patients/1/orders')
+      .set('Content-Type', 'application/json')
+      .send(JSON.stringify({ message: 'x'.repeat(2000) }))
+
+    expect(res.status).toBe(413)
+    expect(res.headers['content-type']).toMatch(/^application\/json/)
+    expect(res.body).toEqual({
+      code: 'PAYLOAD_TOO_LARGE',
+      message: 'request body too large',
+      data: {},
+    })
+  })
+})
