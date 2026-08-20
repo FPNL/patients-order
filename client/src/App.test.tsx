@@ -241,4 +241,57 @@ describe('醫囑 Dialog', () => {
       '第二筆',
     ])
   })
+
+  // 計畫：
+  // 1. save 檢查 res.ok。不 ok 就不動清單、不收起輸入欄位，改把錯誤訊息
+  //    設進一個新的 state 並顯示出來。
+  // 2. 顯示的文案依契約的 code 決定，不直接顯示回應裡的 message——契約
+  //    明寫 message 是英文、給開發者與紀錄檔看的，不是 UI 文案。
+  //    VALIDATION_FAILED 對應「醫囑內容不能是空白」。
+  //
+  // 現在的實作會把錯誤回應當成醫囑接進清單（res.json() 拿到的是錯誤信封），
+  // 畫面上會多出一筆空白項目，而且輸入框會被收起來、使用者打的字消失。
+  //
+  // 三個斷言分別守住：錯誤有顯示、輸入欄位還在且內容還在（不能讓使用者
+  // 重打）、清單沒有被汙染。
+  it('後端回 400 時顯示錯誤、保留輸入內容且不動清單', async () => {
+    server.use(
+      http.get('/api/patients', () => HttpResponse.json(patients)),
+      http.get('/api/patients/:patientId/orders', () =>
+        HttpResponse.json([{ id: 7, patientId: 1, message: '既有的醫囑' }]),
+      ),
+      http.post('/api/patients/:patientId/orders', () =>
+        HttpResponse.json(
+          {
+            code: 'VALIDATION_FAILED',
+            message: 'invalid request body',
+            data: { message: ['Too small: expected string to have >=1 characters'] },
+          },
+          { status: 400 },
+        ),
+      ),
+    )
+
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: '小民' }))
+
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: '新增醫囑' }))
+    await userEvent.type(
+      await within(dialog).findByRole('textbox', { name: '醫囑內容' }),
+      '   ',
+    )
+    await userEvent.click(within(dialog).getByRole('button', { name: '儲存' }))
+
+    expect(await within(dialog).findByText('醫囑內容不能是空白')).toBeInTheDocument()
+
+    // 使用者打的字不能被清掉，不然得整段重來。
+    expect(within(dialog).getByRole('textbox', { name: '醫囑內容' })).toHaveValue('   ')
+
+    // 錯誤的回應不能被當成醫囑接進清單。
+    const list = within(dialog).getByRole('list')
+    expect(within(list).getAllByRole('button').map((item) => item.textContent)).toEqual([
+      '既有的醫囑',
+    ])
+  })
 })
