@@ -1,39 +1,18 @@
 import { createApp } from './app'
+import { CliError, parseCliArgs } from './cli'
 import * as config from './config'
 import { ConfigError, readConfig } from './config'
 import * as database from './db/database'
 import { createDatabase } from './db/database'
 import { migrateToLatest } from './db/migrator'
-import {parseArgs} from "node:util";
-
-/**
- * parseArgs 對不認得的選項、缺值的選項等等丟的是帶 ERR_PARSE_ARGS_ 前綴
- * code 的 TypeError。那些跟 ConfigError 一樣是「啟動設定不對」，不是程式
- * 出錯，所以要用同一種方式呈現。
- */
-function isCliUsageError(err: unknown): err is Error {
-  if (!(err instanceof Error)) return false
-
-  const { code } = err as Error & { code?: unknown }
-  return typeof code === 'string' && code.startsWith('ERR_PARSE_ARGS_')
-}
 
 try {
-  const { values } = parseArgs({
-    args: process.argv.slice(2),
-    options: { conf: { type: 'string' } },
-    strict: true,
-  })
-
-  if (!values.conf) {
-    throw new ConfigError('missing required option --conf <path to config file>')
-  }
-
-  readConfig(values.conf)
+  const { conf } = parseCliArgs(process.argv.slice(2))
+  readConfig(conf)
 } catch (err) {
   // 啟動設定不對就印一行說明並結束，不要吐堆疊追蹤——看的人是啟動服務的
   // 人，不是要來除錯的人。
-  if (err instanceof ConfigError || isCliUsageError(err)) {
+  if (err instanceof CliError || err instanceof ConfigError) {
     console.error(err.message)
     process.exit(1)
   }

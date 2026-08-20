@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs'
-import { parseArgs } from 'node:util'
 import bytes from 'bytes'
 import ms from 'ms'
 import { z } from 'zod'
