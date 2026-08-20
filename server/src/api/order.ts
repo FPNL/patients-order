@@ -67,8 +67,8 @@ async function requirePatient(db: Kysely<Database>, patientId: number): Promise<
   }
 }
 
-/** 契約的 listOrdersOfPatient：回傳該住民的醫囑，依建立時間由舊到新。 */
-export function listOrdersOfPatient(db: Kysely<Database>): RequestHandler {
+/** 契約的 listOrdersOfPatientHandler：回傳該住民的醫囑，依建立時間由舊到新。 */
+export function listOrdersOfPatientHandler(db: Kysely<Database>): RequestHandler {
   return async (req, res) => {
     const { patientId } = parsePathParams(patientIdParam, req.params)
     await requirePatient(db, patientId)
@@ -87,8 +87,8 @@ export function listOrdersOfPatient(db: Kysely<Database>): RequestHandler {
   }
 }
 
-/** 契約的 createOrderForPatient：為該住民新增一筆醫囑。 */
-export function createOrderForPatient(db: Kysely<Database>): RequestHandler {
+/** 契約的 createOrderForPatientHandler：為該住民新增一筆醫囑。 */
+export function createOrderForPatientHandler(db: Kysely<Database>): RequestHandler {
   return async (req, res) => {
     const { patientId } = parsePathParams(patientIdParam, req.params)
     await requirePatient(db, patientId)
@@ -104,8 +104,8 @@ export function createOrderForPatient(db: Kysely<Database>): RequestHandler {
   }
 }
 
-/** 契約的 replaceOrder：以請求內容取代該醫囑的內容。 */
-export function replaceOrder(db: Kysely<Database>): RequestHandler {
+/** 契約的 replaceOrderHandler：以請求內容取代該醫囑的內容。 */
+export function replaceOrderHandler(db: Kysely<Database>): RequestHandler {
   return async (req, res) => {
     const { orderId } = parsePathParams(orderIdParam, req.params)
     const message = parseMessage(req.body)
