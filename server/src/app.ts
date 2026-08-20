@@ -178,7 +178,11 @@ export function createApp(db: Kysely<Database>): Express {
       .set({ message: body.data.message })
       .where('id', '=', params.data.orderId)
       .returningAll()
-      .executeTakeFirstOrThrow()
+      .executeTakeFirst()
+
+    if (!order) {
+      throw new ApiError(404, 'NOT_FOUND', 'order not found')
+    }
 
     res.json({
       id: order.id,
