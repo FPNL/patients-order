@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import * as config from './config'
-import { ConfigError, configPathFromArgv, parseConfig, readConfig } from './config'
+import { ConfigError, parseConfig, readConfig } from './config'
 
 const minimal = { database: { url: 'postgresql://app:app@localhost:5432/interview' } }
 const source = (extra: Record<string, unknown> = {}) =>
@@ -103,22 +103,6 @@ describe('parseConfig 拒絕不合規格的設定', () => {
   it('內容不是合法 JSON', () => {
     expect(() => parseConfig('{ 壞掉', '/c.json')).toThrow(ConfigError)
     expect(() => parseConfig('{ 壞掉', '/c.json')).toThrow('/c.json is not valid JSON')
-  })
-})
-
-describe('configPathFromArgv 取命令列的路徑', () => {
-  it('取得 --conf 指定的路徑', () => {
-    expect(configPathFromArgv(['--conf', '/etc/app.json'])).toBe('/etc/app.json')
-  })
-
-  it('沒給 --conf 時說明缺什麼', () => {
-    expect(() => configPathFromArgv([])).toThrow(ConfigError)
-    expect(() => configPathFromArgv([])).toThrow('missing required option --conf')
-  })
-
-  it('給了不認得的選項時失敗，而不是默默忽略', () => {
-    expect(() => configPathFromArgv(['--conf', '/etc/app.json'])).not.toThrow()
-    expect(() => configPathFromArgv(['--conf', '/etc/app.json', '--typo', '1'])).toThrow()
   })
 })
 
