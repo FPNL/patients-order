@@ -78,4 +78,26 @@ describe('醫囑 Dialog', () => {
       '血壓每日量兩次',
     ])
   })
+
+  // 計畫：OrderDialog 在 orders 是空陣列時，改渲染一段說明文字而不是空的
+  // List。文案用「尚未有醫囑」。
+  //
+  // 這顆守的是契約那條區分：住民存在但沒有醫囑會回 200 與空陣列，不是
+  // NOT_FOUND。前端拿到空陣列時要呈現「這位住民還沒有醫囑」，而不是留白
+  // 讓人以為載入失敗。
+  //
+  // 這裡刻意不斷言「沒有 listitem」——那種否定斷言在畫面還沒載完時也會
+  // 通過。改成斷言那句文字真的出現，是一個只有實作對了才會成立的條件。
+  it('住民沒有醫囑時顯示空狀態', async () => {
+    server.use(
+      http.get('/api/patients', () => HttpResponse.json(patients)),
+      http.get('/api/patients/:patientId/orders', () => HttpResponse.json([])),
+    )
+
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: '小民' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(await within(dialog).findByText('尚未有醫囑')).toBeInTheDocument()
+  })
 })
