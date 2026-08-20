@@ -37,3 +37,29 @@ describe('沒有被任何端點命中的路徑', () => {
     })
   })
 })
+
+describe('body 不是合法的 JSON', () => {
+  // 計畫：在 errorHandler 裡多認一種錯誤。express.json() 解析失敗時丟出的
+  // 是帶 type: 'entity.parse.failed' 的 SyntaxError，把它轉成
+  // ApiError(400, 'VALIDATION_FAILED', 'invalid request body')。
+  //
+  // data 是空物件而不是 { 欄位名: [...] }：解析都失敗了，根本還不知道有
+  // 哪些欄位。契約規定 data 必填、允許空物件，正好涵蓋這種情況。
+  //
+  // 現在這個錯誤會走 errorHandler 的 next(err) 交還 Express，回的是預設的
+  // HTML 錯誤頁，呼叫端解析會炸。
+  it('回 400 與 VALIDATION_FAILED', async () => {
+    const res = await request(createApp(db))
+      .post('/api/patients/1/orders')
+      .set('Content-Type', 'application/json')
+      .send('{ 這不是 JSON')
+
+    expect(res.status).toBe(400)
+    expect(res.headers['content-type']).toMatch(/^application\/json/)
+    expect(res.body).toEqual({
+      code: 'VALIDATION_FAILED',
+      message: 'invalid request body',
+      data: {},
+    })
+  })
+})
