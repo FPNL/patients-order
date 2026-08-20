@@ -44,6 +44,31 @@ export function toFieldErrors(error: z.ZodError): Record<string, string[]> {
   return fieldErrors
 }
 
+/** 驗路徑參數，不合規格就以契約的 VALIDATION_FAILED 拒絕整個請求。 */
+export function parsePathParams<T extends z.ZodType>(
+  schema: T,
+  params: unknown,
+): z.infer<T> {
+  return parseOrThrow(schema, params, 'invalid path parameter')
+}
+
+/** 驗 request body，不合規格就以契約的 VALIDATION_FAILED 拒絕整個請求。 */
+export function parseBody<T extends z.ZodType>(schema: T, body: unknown): z.infer<T> {
+  return parseOrThrow(schema, body, 'invalid request body')
+}
+
+function parseOrThrow<T extends z.ZodType>(
+  schema: T,
+  input: unknown,
+  message: string,
+): z.infer<T> {
+  const parsed = schema.safeParse(input)
+  if (!parsed.success) {
+    throw new ApiError(400, 'VALIDATION_FAILED', message, toFieldErrors(parsed.error))
+  }
+  return parsed.data
+}
+
 function isJsonParseError(err: unknown): boolean {
   return (
     err instanceof SyntaxError &&
@@ -55,7 +80,7 @@ function isJsonParseError(err: unknown): boolean {
  * 把 ApiError 序列化成契約規定的 { code, message, data }。
  *
  * Express 5 會把 async handler 回傳的 rejected promise 轉到這裡，所以
- * handler 不需要各自包 try/catch。不認得的錯誤原樣往下傳。
+ * handler 不需要各自包 try/catch。
  */
 export function errorHandler(
   err: unknown,
