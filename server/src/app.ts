@@ -23,6 +23,8 @@ import * as database from './db/database'
 export function createApp(): Express {
   const app = express()
 
+  // 補充，因為是小型專題，所以沒有琢磨 ratelimit cors ip白名單 compress 日誌 可觀測性
+
   // 掛在最前面，讓每個回應都帶到——包含錯誤回應。
   app.use(helmet())
   app.use(express.json({ limit: config.Default.max_request_body }))
