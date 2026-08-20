@@ -95,7 +95,7 @@ export default function OrderDialog({ patient, onClose }: Props) {
               {patient.name}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              醫囑
+              {orders.length} 則
             </Typography>
           </Stack>
 
