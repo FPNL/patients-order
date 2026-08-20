@@ -108,9 +108,10 @@ describe('POST /api/patients/:patientId/orders', () => {
   // 驗證失敗、未定義欄位、住民不存在這三條分支都不碰，各自留給第 7、8、
   // 9 顆。這顆只走 happy path。
   //
-  // 斷言完整的 body：契約規定回的是 Order，三個欄位都要在。id 由後端
-  // 產生且契約明寫不承諾連續，但這是一個乾淨的測試資料庫、序列從 1 開始，
-  // 所以這裡斷言 1 是安全的。
+  // 斷言完整的 body：契約規定回的是 Order，三個欄位都要在。id 不寫死——
+  // 契約明寫不承諾連續，而且 Postgres 的 sequence 不受 transaction
+  // rollback 影響，實際值取決於這個檔案先前跑過幾次成功的 insert。
+  // 這裡只釘住「是個正整數」，確切的值由後端決定。
   it('新增成功時回 201 與建立的醫囑', async () => {
     const res = await request(createApp(db))
       .post('/api/patients/1/orders')
@@ -119,10 +120,11 @@ describe('POST /api/patients/:patientId/orders', () => {
     expect(res.status).toBe(201)
     expect(res.headers['content-type']).toMatch(/^application\/json/)
     expect(res.body).toEqual({
-      id: 1,
+      id: expect.any(Number),
       patientId: 1,
       message: '超過120請施打8u',
     })
+    expect(res.body.id).toBeGreaterThan(0)
   })
 
   // 計畫：把 orderInput.parse 換成 safeParse，驗不過就丟
