@@ -32,4 +32,29 @@ describe('GET /api/patients/:patientId/orders', () => {
     expect(res.headers['content-type']).toMatch(/^application\/json/)
     expect(res.body).toEqual([])
   })
+
+  // 計畫：
+  // 1. 這條 handler 改成先 selectFrom('patients') 查該 id 存在與否。
+  //    存在就照舊回 []（上一顆的行為不變），不存在就走錯誤路徑。
+  // 2. 錯誤路徑丟出一個帶 code / message / status 的錯誤，交給一個新的
+  //    error middleware 統一序列化成 { code, message, data }。這顆只需要
+  //    NOT_FOUND 這一種，其餘三種 code 留給第 14、15、16 顆。
+  //
+  // message 斷言的是 'patient not found'——契約規定 message 是英文、給
+  // 開發者與紀錄檔看、同一個 code 在不同情境文字可能不同，所以這個字串
+  // 是我們自己決定的契約，不是函式庫產物，可以直接寫死。
+  //
+  // 契約規定 data 必填、NOT_FOUND 時是空物件，所以這裡斷言完整的 body
+  // 而不只是 code。
+  it('住民不存在時回 404 與 NOT_FOUND', async () => {
+    const res = await request(createApp(db)).get('/api/patients/99/orders')
+
+    expect(res.status).toBe(404)
+    expect(res.headers['content-type']).toMatch(/^application\/json/)
+    expect(res.body).toEqual({
+      code: 'NOT_FOUND',
+      message: 'patient not found',
+      data: {},
+    })
+  })
 })
