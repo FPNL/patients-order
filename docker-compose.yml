@@ -1,0 +1,21 @@
+# 開發用的 PostgreSQL。測試不需要它——測試跑的是行程內的 PGlite。
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: interview_project_pg
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: interview
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U app -d interview']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
