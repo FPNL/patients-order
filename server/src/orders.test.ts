@@ -178,4 +178,17 @@ describe('POST /api/patients/:patientId/orders', () => {
       },
     })
   })
+
+  it('住民不存在時回 404 與 NOT_FOUND', async () => {
+    const res = await request(createApp(db))
+      .post('/api/patients/99/orders')
+      .send({ message: '超過120請施打8u' })
+
+    expect(res.status).toBe(404)
+    expect(res.body).toEqual({
+      code: 'NOT_FOUND',
+      message: 'patient not found',
+      data: {},
+    })
+  })
 })
