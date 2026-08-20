@@ -174,6 +174,33 @@ describe('POST /api/patients/:patientId/orders', () => {
     })
   })
 
+  // 計畫：把 ReqCreateOrderForPatient 的 message 改成
+  // z.string().trim().min(1).max(4000)。trim 在 min 之前跑，所以只由空白
+  // 組成的內容會先被削成空字串、再落在 too_small，接著走既有的 parseBody
+  // 丟 ApiError(400, 'VALIDATION_FAILED', 'invalid request body',
+  // { message: [...] })——不必為它多開一條分支。
+  //
+  // 現在 min(1) 看到的是未經處理的 '   '，長度 3、通過驗證，這筆只有空白
+  // 的醫囑會被存進資料庫，在清單上呈現為一列空白。
+  //
+  // data 裡的訊息是實際跑 zod 4.4.3 取得的：trim 後的空字串得到
+  // 'Too small: expected string to have >=1 characters'，與空字串那顆同一
+  // 句——契約只承諾 code，這個字串是 zod 的產物，原樣寫進斷言。
+  it('醫囑內容只有空白時回 400 與 VALIDATION_FAILED', async () => {
+    const res = await request(createApp())
+      .post('/api/patients/1/orders')
+      .send({ message: '   ' })
+
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({
+      code: 'VALIDATION_FAILED',
+      message: 'invalid request body',
+      data: {
+        message: ['Too small: expected string to have >=1 characters'],
+      },
+    })
+  })
+
   // 計畫：
   // 1. orderInput 加上 .strict()，未知欄位就會產生一個 unrecognized_keys
   //    的 issue。
