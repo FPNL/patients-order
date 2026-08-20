@@ -47,7 +47,9 @@ export function listOrdersOfPatientHandler(db: Kysely<Database>): RequestHandler
 // 呼叫端拼錯欄位名時應該馬上知道，而不是以為存成功了。
 const ReqCreateOrderForPatient = z
   .object({
-    message: z.string().min(1).max(4000),
+    // trim 在 min 之前跑：只由空白組成的內容會先被削成空字串，再落在
+    // too_small 被擋下來。
+    message: z.string().trim().min(1).max(4000),
   })
   .strict()
 
