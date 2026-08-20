@@ -41,4 +41,19 @@ describe('parseCliArgs', () => {
       new CliError("Unknown option '--typo'"),
     )
   })
+
+  // 打算怎麼讓它變綠：不用改實作。--conf 缺值時 parseArgs 丟的是
+  // ERR_PARSE_ARGS_INVALID_OPTION_VALUE，前綴符合，上一輪的 catch 已經會把
+  // 它換成 CliError。
+  //
+  // 這顆釘的是「缺值」與「沒給」是兩種錯誤：--conf 後面沒接東西的人已經知道
+  // 要用這個選項，該看到的是「值呢」，不是「請加上 --conf」。實作若哪天改成
+  // 先檢查 values.conf 再處理 parseArgs 的錯誤，兩者就會被混成同一句話。
+  //
+  // 訊息一樣是實跑 parseArgs 拿到的字串。
+  it('--conf 沒接值就丟 CliError，訊息與沒給 --conf 不同', () => {
+    expect(() => parseCliArgs(['--conf'])).toThrow(
+      new CliError("Option '--conf <value>' argument missing"),
+    )
+  })
 })
