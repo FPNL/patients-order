@@ -283,4 +283,25 @@ describe('PUT /api/orders/:orderId', () => {
       data: {},
     })
   })
+
+  it('醫囑內容為空字串時回 400 與 VALIDATION_FAILED', async () => {
+    const app = createApp(db)
+
+    const created = await request(app)
+      .post('/api/patients/1/orders')
+      .send({ message: '超過120請施打8u' })
+
+    const res = await request(app)
+      .put(`/api/orders/${created.body.id}`)
+      .send({ message: '' })
+
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({
+      code: 'VALIDATION_FAILED',
+      message: 'invalid request body',
+      data: {
+        message: ['Too small: expected string to have >=1 characters'],
+      },
+    })
+  })
 })
