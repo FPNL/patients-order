@@ -191,10 +191,35 @@ describe('OrderDialog 編輯醫囑', () => {
       ]),
     )
   })
+
+  // 計畫：DialogContent 改成二選一——draft 為 null 就渲染 OrderList 與
+  // 「新增醫囑」按鈕，不為 null 就只渲染 OrderEditor。兩者不再同時出現。
+  //
+  // 現在點下醫囑後，清單留在原地、編輯框長在它下面，同一則醫囑在畫面上
+  // 出現兩次，使用者得自己對照哪一份才是正在改的。
+  //
+  // 斷言「清單不在畫面上」而不是斷言某個 class／state：使用者看到的就是
+  // 上面那一整排唯讀的醫囑不見了。
+  it('點醫囑後清單換成編輯畫面', async () => {
+    server.use(
+      http.get('/api/patients/:patientId/orders', () =>
+        HttpResponse.json([
+          { id: 7, patientId: 1, message: '第一筆' },
+          { id: 9, patientId: 1, message: '第二筆' },
+        ]),
+      ),
+    )
+
+    renderDialog()
+    await userEvent.click(await screen.findByRole('button', { name: '第一筆' }))
+
+    expect(await screen.findByRole('textbox', { name: '醫囑內容' })).toHaveValue('第一筆')
+    expect(screen.queryByRole('list')).not.toBeInTheDocument()
+  })
 })
 
 describe('OrderDialog 儲存失敗', () => {
-  it('顯示錯誤、保留輸入內容且不動清單', async () => {
+  it('顯示錯誤、保留輸入內容且留在編輯畫面', async () => {
     server.use(
       http.get('/api/patients/:patientId/orders', () =>
         HttpResponse.json([{ id: 7, patientId: 1, message: '既有的醫囑' }]),
@@ -222,10 +247,10 @@ describe('OrderDialog 儲存失敗', () => {
 
     expect(screen.getByRole('textbox', { name: '醫囑內容' })).toHaveValue('   ')
 
-    const list = screen.getByRole('list')
-    expect(within(list).getAllByRole('button').map((item) => item.textContent)).toEqual([
-      '既有的醫囑',
-    ])
+    // 兩段式之下，編輯畫面裡本來就沒有清單，這裡改為斷言「沒有被丟回
+    // 清單」——存失敗時使用者要留在原地繼續改，不是回到上一頁重來。
+    // 「清單內容沒有被動到」由返回清單那顆測試接手。
+    expect(screen.queryByRole('list')).not.toBeInTheDocument()
   })
 
   it('重新開啟輸入區時清掉上一次的錯誤', async () => {
