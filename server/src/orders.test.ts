@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { sql, type Kysely } from 'kysely'
 import { createApp } from './app'
@@ -14,13 +14,20 @@ afterAll(async () => {
   await db.destroy()
 })
 
-// 從新增醫囑那顆開始這個檔案有寫入，測試之間必須隔離。PGlite 建立一次要
-// 約 500ms，所以不重建實例，改用 transaction rollback——單顆成本 0.33ms。
+// 這個檔案有寫入，測試之間必須隔離。PGlite 建立一次約 500ms，所以不重建
+// 實例，改成每顆測試前清空 orders。
+//
+// 不用 BEGIN / ROLLBACK：那個做法依賴共用連線的 transaction 狀態，只要有
+// 一次 ROLLBACK 沒生效，污染就會靜悄悄地跨測試流過去，症狀是隨機某一顆
+// 因為多了不該有的資料而紅。truncate 不依賴任何狀態，每顆多花 0.38ms。
+//
+// 附帶好處：同一個 transaction 裡 now() 回的是 transaction 開始時間，
+// 連續新增的幾筆會拿到完全相同的 created_at；改成 truncate 之後每筆的
+// created_at 才會真的不同，排序那顆測的才是它宣稱的東西。
+//
+// patients 不能清——那是 migration 帶進來的固定 seed。
 beforeEach(async () => {
-  await sql`begin`.execute(db)
-})
-afterEach(async () => {
-  await sql`rollback`.execute(db)
+  await sql`truncate orders restart identity cascade`.execute(db)
 })
 
 describe('GET /api/patients/:patientId/orders', () => {
