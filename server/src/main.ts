@@ -12,11 +12,10 @@ import {parseArgs} from "node:util";
  * 出錯，所以要用同一種方式呈現。
  */
 function isCliUsageError(err: unknown): err is Error {
-  return (
-    err instanceof Error &&
-    typeof (err as { code?: unknown }).code === 'string' &&
-    (err as { code: string }).code.startsWith('ERR_PARSE_ARGS_')
-  )
+  if (!(err instanceof Error)) return false
+
+  const { code } = err as Error & { code?: unknown }
+  return typeof code === 'string' && code.startsWith('ERR_PARSE_ARGS_')
 }
 
 try {
