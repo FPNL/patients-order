@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import App from './App'
@@ -128,5 +128,56 @@ describe('醫囑 Dialog', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: '新增醫囑' }))
 
     expect(await within(dialog).findByRole('textbox', { name: '醫囑內容' })).toBeInTheDocument()
+  })
+
+  // 計畫：
+  // 1. TextField 旁加一個「儲存」按鈕。
+  // 2. 按下去打 POST /api/patients/:id/orders，body 是 { message }。
+  // 3. 成功後把回傳的醫囑接到清單尾端（契約承諾新增的排在最後），
+  //    並把 draft 設回 null 收起輸入欄位。
+  //
+  // 不重新打一次 GET 來更新清單：契約承諾 POST 會回傳建立好的醫囑，
+  // 那份資料就是權威的，再打一次 GET 是多一次來回。
+  //
+  // handler 裡斷言 request body 的完整內容：少了它，一個把 message 寫死
+  // 或漏傳的實作也會通過。await request.json() 是這顆真正的驗證點。
+  it('填入內容送出後打 POST，並把新醫囑接到清單尾端', async () => {
+    const existing = { id: 7, patientId: 1, message: '既有的醫囑' }
+    let posted: unknown
+
+    server.use(
+      http.get('/api/patients', () => HttpResponse.json(patients)),
+      http.get('/api/patients/:patientId/orders', () => HttpResponse.json([existing])),
+      http.post('/api/patients/:patientId/orders', async ({ request, params }) => {
+        expect(params.patientId).toBe('1')
+        posted = await request.json()
+        return HttpResponse.json(
+          { id: 8, patientId: 1, message: '超過120請施打8u' },
+          { status: 201 },
+        )
+      }),
+    )
+
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: '小民' }))
+
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: '新增醫囑' }))
+    await userEvent.type(
+      await within(dialog).findByRole('textbox', { name: '醫囑內容' }),
+      '超過120請施打8u',
+    )
+    await userEvent.click(within(dialog).getByRole('button', { name: '儲存' }))
+
+    await waitFor(() => expect(posted).toEqual({ message: '超過120請施打8u' }))
+
+    const messages = await within(dialog).findAllByRole('listitem')
+    expect(messages.map((item) => item.textContent)).toEqual([
+      '既有的醫囑',
+      '超過120請施打8u',
+    ])
+
+    // 存完就收起來，不留著一個裝著舊內容的輸入框。
+    expect(within(dialog).queryByRole('textbox', { name: '醫囑內容' })).not.toBeInTheDocument()
   })
 })
