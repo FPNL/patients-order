@@ -5,6 +5,10 @@ import { createApp } from './app'
 import { createTestDatabase } from './db/test-database'
 import type { Database } from './db/schema'
 
+// 這些測試都不關心 body 上限，用一個寬鬆到碰不到的值。
+// 上限本身的行為由 api.test.ts 裡那顆 413 的測試負責。
+const appOptions = { maxRequestBody: 1024 * 1024 }
+
 let db: Kysely<Database>
 
 beforeAll(async () => {
@@ -16,7 +20,7 @@ afterAll(async () => {
 
 describe('server 測試骨架', () => {
   it('supertest 可以直接打未 listen 的 app', async () => {
-    const res = await request(createApp(db)).get('/api/health')
+    const res = await request(createApp(db, appOptions)).get('/api/health')
 
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ status: 'ok' })
@@ -37,7 +41,7 @@ describe('資安相關的回應標頭', () => {
   // helmet 還會設 CSP、HSTS 等其他標頭，但那些對純 JSON API 沒有實際
   // 作用，所以不寫進斷言——測試只釘住真的有意義的行為。
   it('不洩漏後端框架，且禁止瀏覽器猜測型別', async () => {
-    const res = await request(createApp(db)).get('/api/health')
+    const res = await request(createApp(db, appOptions)).get('/api/health')
 
     expect(res.headers['x-powered-by']).toBeUndefined()
     expect(res.headers['x-content-type-options']).toBe('nosniff')

@@ -69,6 +69,13 @@ function parseOrThrow<T extends z.ZodType>(
   return parsed.data
 }
 
+function isPayloadTooLargeError(err: unknown): boolean {
+  return (
+    err instanceof Error &&
+    (err as Error & { type?: string }).type === 'entity.too.large'
+  )
+}
+
 function isJsonParseError(err: unknown): boolean {
   return (
     err instanceof SyntaxError &&
@@ -97,6 +104,12 @@ export function errorHandler(
   // 由我們決定，所以與 zod 驗證失敗時用同一個字串。
   if (isJsonParseError(err)) {
     err = new ApiError(400, 'VALIDATION_FAILED', 'invalid request body')
+  }
+
+  // express.json() 在讀取階段就中止，body 的內容從沒被解析過，所以 data
+  // 是空物件——後端說不出是哪個欄位有問題。
+  if (isPayloadTooLargeError(err)) {
+    err = new ApiError(413, 'PAYLOAD_TOO_LARGE', 'request body too large')
   }
 
   if (err instanceof ApiError) {

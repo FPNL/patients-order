@@ -17,12 +17,17 @@ import type { Database } from './db/schema'
  * 路徑集中在這裡，與 docs/openapi.yaml 的端點一一對應；handler 本身住在
  * api/ 底下，以契約的 operationId 加上 Handler 後綴命名。
  */
-export function createApp(db: Kysely<Database>): Express {
+export interface AppOptions {
+  /** 單一 request body 的大小上限，單位是位元組。超過的請求回 413。 */
+  maxRequestBody: number
+}
+
+export function createApp(db: Kysely<Database>, options: AppOptions): Express {
   const app = express()
 
   // 掛在最前面，讓每個回應都帶到——包含錯誤回應。
   app.use(helmet())
-  app.use(express.json())
+  app.use(express.json({ limit: options.maxRequestBody }))
 
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok' })

@@ -7,6 +7,10 @@ import { PGliteDialect } from '../db/pglite-dialect'
 import { createTestDatabase } from '../db/test-database'
 import type { Database } from '../db/schema'
 
+// 這些測試都不關心 body 上限，用一個寬鬆到碰不到的值。
+// 上限本身的行為由 api.test.ts 裡那顆 413 的測試負責。
+const appOptions = { maxRequestBody: 1024 * 1024 }
+
 let db: Kysely<Database>
 
 // 這個檔案測的是錯誤信封的兜底，沒有任何測試會寫資料，所以不需要隔離。
@@ -28,7 +32,7 @@ describe('沒有被任何端點命中的路徑', () => {
   // 解析會直接炸——契約承諾「所有錯誤回應都是同一個形狀，包含沒有被任何
   // 端點命中的路徑在內」，這顆就是在守那句話。
   it('回 404 與 ROUTE_NOT_FOUND', async () => {
-    const res = await request(createApp(db)).get('/api/no-such-thing')
+    const res = await request(createApp(db, appOptions)).get('/api/no-such-thing')
 
     expect(res.status).toBe(404)
     expect(res.headers['content-type']).toMatch(/^application\/json/)
@@ -51,7 +55,7 @@ describe('body 不是合法的 JSON', () => {
   // 現在這個錯誤會走 errorHandler 的 next(err) 交還 Express，回的是預設的
   // HTML 錯誤頁，呼叫端解析會炸。
   it('回 400 與 VALIDATION_FAILED', async () => {
-    const res = await request(createApp(db))
+    const res = await request(createApp(db, appOptions))
       .post('/api/patients/1/orders')
       .set('Content-Type', 'application/json')
       .send('{ 這不是 JSON')
@@ -86,7 +90,7 @@ describe('未預期的錯誤', () => {
       dialect: new PGliteDialect(new PGlite()),
     })
 
-    const res = await request(createApp(emptyDb)).get('/api/patients')
+    const res = await request(createApp(emptyDb, appOptions)).get('/api/patients')
 
     expect(res.status).toBe(500)
     expect(res.headers['content-type']).toMatch(/^application\/json/)
