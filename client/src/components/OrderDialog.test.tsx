@@ -30,6 +30,26 @@ describe('OrderDialog 讀取醫囑', () => {
     ])
   })
 
+  // 計畫：把 DialogTitle 裡寫死的副標「醫囑」換成 `${orders.length} 則`。
+  // orders 已經在 state 裡，不必多打一支 API 問筆數。
+  //
+  // 現在那行永遠是「醫囑」——Dialog 裡整片都是醫囑，那行字沒有資訊量。
+  // 同樣一行高度改放筆數，才是使用者在標題列讀得到的東西。
+  it('標題列顯示醫囑筆數', async () => {
+    server.use(
+      http.get('/api/patients/:patientId/orders', () =>
+        HttpResponse.json([
+          { id: 7, patientId: 1, message: '超過120請施打8u' },
+          { id: 9, patientId: 1, message: '血壓每日量兩次' },
+        ]),
+      ),
+    )
+
+    renderDialog()
+
+    expect(await screen.findByText('2 則')).toBeInTheDocument()
+  })
+
   it('沒有醫囑時顯示空狀態', async () => {
     server.use(http.get('/api/patients/:patientId/orders', () => HttpResponse.json([])))
 
